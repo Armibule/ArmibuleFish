@@ -1,5 +1,6 @@
 #include "gameConstants.cpp"
 
+// Variable used to test features
 bool TEST_VAR;
 
 // Time that the bot can take if he wants more depth, in milliseconds

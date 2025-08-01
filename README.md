@@ -1,10 +1,10 @@
-# Armibule Fish
+# ArmibuleFish
 
 ## 👋 Présentation du projet
 
-Il s'agit d'un **bot d'échecs** que j'ai programmé par moi même en utilisant des conseils et techinques figurant sur le site https://chessprogramming.org. 
+Il s'agit d'un **bot d'échecs** que j'ai programmé par moi même en utilisant des conseils et techniques figurant sur le site https://chessprogramming.org. 
 
-Il en est la **troisième itération**, la première version étant en Python et la seconde aussi en C++.
+Il en est à la **troisième itération**, la première version étant en Python et la seconde aussi en C++.
 
 Sachant qu'il s'agit de l'un de mes premiers projets (plus ou moins) aboutis en C++, certaines bonnes pratiques ne sont probablement pas respectées (comme l'absences de fichiers headers par exemple).
 
@@ -13,6 +13,8 @@ Sachant qu'il s'agit de l'un de mes premiers projets (plus ou moins) aboutis en 
 Voici les techniques que j'ai (j'espère correctement) implémentées :
 
  - L'algorithme **MinMax** avec **Alpha-Beta Pruning**
+
+ - Utilisation de **magic bitBoards** et **bitscans** pour la génération des coups
 
  - Une **Table de transposition** contenant les coups précédemment cherchés, stocké grace à un extrait du **Hash Zobrist** du noeud
 
@@ -30,7 +32,7 @@ Voici les techniques que j'ai (j'espère correctement) implémentées :
 
 ### 🔧 Performances
 
-Sur mon ordinateur, avec un processeur assez ancien (`Intel Core i7-6700HQ 2.60GHz`), la recherche prend **1s**-**10s** avec une profondeur maximale de **8** ou (rarement) **9** plis, dépendant de la complexité de la position. 
+Sur mon ordinateur, avec un processeur assez ancien (`Intel Core i7-6700HQ 2.60GHz`), la recherche prend **1s**-**10s** avec une **profondeur maximale** de **8** ou (rarement) **9 plis**, dépendant de la complexité de la position. 
 
 Quant au **niveau** atteint par ce bot, il pourrait se situer entre **2000** et **2200 elo**, en se basant sur les bots chess.com qu'il peut battre, mais je ne l'ai pas encore rigoureusement testé.
 
@@ -40,6 +42,7 @@ Quant au **niveau** atteint par ce bot, il pourrait se situer entre **2000** et 
  - Implémenter de nouvelles techniques comme l'**aspiration window**
  - Améliorer les **constantes** choisies pour l'**évaluation** car elles sont pour l'instant assez arbitraires
  - Pour ce faire, améliorer le code de test pour comparer différentes versions du bot
+- Utiliser des collisions constructives pour réduire la taille des tables d'attaques
  - Respecter les standards et utiliser les fichiers headers :,)
 
 ## 📥 Installation des librairies
