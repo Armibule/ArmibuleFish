@@ -14,22 +14,23 @@
 
 // Compile-time features
 const bool botPlaysBlack = false;
-const bool botPlaysWhite = true;
+const bool botPlaysWhite = false;
 
 const bool IS_PROFILING = false;
 
 
 void profiling() {
     Board board = {};
+    Bot * bot = new Bot();
     for (int i = 0 ; i < 5 ; i++) {
         printf("Bot plays\n");
 
-        MoveResult moveResult = getBestMove(board, true);
+        MoveResult moveResult = bot->getBestMove(board, true);
 
         printMove(moveResult.move);
         
         board.playMove(moveResult.move);
-        onMovePlayed(board);
+        bot->onMovePlayed(board);
     }
 }
 
@@ -153,6 +154,10 @@ Board makeTestBoard() {
 }
 
 
+const int FPS = 60;
+const int FRAME_DUARTION = 1000.0f / (float) FPS;       // Duration in ms
+
+
 int main(int argc, char* argv[]) {
     genBitboardConstants();
     genZobristKeys();
@@ -194,16 +199,22 @@ int main(int argc, char* argv[]) {
 
     SDL_Event windowEvent;
 
+    Bot * bot = new Bot();
     Shared * shared = new Shared();
-    Game game {renderer, shared};
+    Game game {renderer, shared, bot};
     Elements elements {renderer, shared};
     shared->game = &game;
     shared->elements = &elements;
 
+    game.onElementsLoaded();
+
+    // DEBUG
     /*std::ifstream positionsFile ("testing/positions.bin", std::ios_base::binary);
-    game.board = loadBoardFile(positionsFile, 1);
+    game.board = loadBoardFile(positionsFile, 0);
     positionsFile.close();*/
     // game.board = makeTestBoard();
+
+    int lastTick = SDL_GetTicks();
 
     bool running {true};
     while ( running ) {
@@ -231,7 +242,7 @@ int main(int argc, char* argv[]) {
         
         SDL_RenderPresent(renderer);
 
-        if ( SDL_PollEvent( &windowEvent ) ) {
+        while ( SDL_PollEvent( &windowEvent ) ) {
             switch( windowEvent.type ) {
                 case SDL_QUIT:
                     running = false;
@@ -280,6 +291,10 @@ int main(int argc, char* argv[]) {
                 game.botPlays();
             }
         }
+
+        int newTick = SDL_GetTicks();
+        SDL_Delay(std::max(FRAME_DUARTION - (newTick - lastTick), 0));
+        lastTick = newTick;
     };
 
     SDL_DestroyWindow( window );

@@ -1,13 +1,12 @@
-#include "../engine/board.cpp"
 #include <thread>
 #include <atomic>
-
-namespace process1 {
-    #include "../engine/bot.cpp"
-}
-namespace process2 {
-    #include "../engine/bot.cpp"
-}
+#include "../engine/board.cpp"
+#include "../engine/gameConstants.cpp"
+#include "../engine/bot.cpp"
+#include <array>
+#include <vector>
+#include <memory>
+#include <chrono>
 
 
 // Each position is played twice
@@ -19,62 +18,28 @@ std::atomic<int> AWins (0);  // TEST_VAR = false
 std::atomic<int> BWins (0);  // TEST_VAR = true
 std::atomic<int> draws (0);
 
+std::atomic<float> depthDiffs (0.0f);
 
-void doTests1(bool isAWhite, Board * boards) {
-    for (int i = 0 ; i < POSITIONS_COUNT ; i++) {
-        if (isAWhite) {
-            printf("Game n°%d, A white\n", i+1);
-        } else {
-            printf("Game n°%d, B white\n", i+1);
-        }
-        
-        Board board = boards[i].copy();
 
-        int moveCount = 0;
-        while (board.state == NEUTRAL && moveCount < MAX_MOVE_COUNT) {
-            if (isAWhite == board.whiteTurn) {
-                process1::TEST_VAR = false;
-            } else {
-                process1::TEST_VAR = true;
-            }
+void doTests(bool isAWhite, Board * boards, int startIndex, int boardCount) {
+    Bot * whiteBot = new Bot();
+    Bot * blackBot = new Bot();
 
-            auto bestResult = process1::getBestMove(board, false);
-
-            board.playMove(bestResult.move);
-            process1::onMovePlayed(board);
-            moveCount += 1;
-        }
-
-        if (moveCount >= MAX_MOVE_COUNT) {
-            printf("Max move count exceeded\n");
-        }
-
-        // printBoard(board);
-
-        if (board.state == WHITE_WON) {
-            if (isAWhite) {
-                printf("A wins\n");
-                AWins += 1;
-            } else {
-                printf("B wins\n");
-                BWins += 1;
-            }
-        } else if (board.state == BLACK_WON) {
-            if (isAWhite) {
-                printf("B wins\n");
-                BWins += 1;
-            } else {
-                printf("A wins\n");
-                AWins += 1;
-            }
-        } else {
-            draws += 1;
-        }
+    if (isAWhite) {
+        blackBot->TEST_VAR = true;
+    } else {
+        whiteBot->TEST_VAR = true;
     }
-}
 
-void doTests2(bool isAWhite, Board * boards) {
-    for (int i = 0 ; i < POSITIONS_COUNT ; i++) {
+    for (int i = startIndex ; i < startIndex + boardCount ; i++) {
+        whiteBot->resetBot();
+        blackBot->resetBot();
+
+        int ADepthSum = 0;
+        int BDepthSum = 0;
+        int AMoves = 0;
+        int BMoves = 0;
+
         if (isAWhite) {
             printf("Game n°%d, A white\n", i+1);
         } else {
@@ -85,16 +50,94 @@ void doTests2(bool isAWhite, Board * boards) {
 
         int moveCount = 0;
         while (board.state == NEUTRAL && moveCount < MAX_MOVE_COUNT) {
-            if (isAWhite == board.whiteTurn) {
-                process2::TEST_VAR = false;
+            bool whiteTurn = board.whiteTurn;
+            uint64_t startZobristHash = board.zobristHash;
+
+            MoveResult bestResult;
+            if (whiteTurn) {
+                bestResult = whiteBot->getBestMove(board, false);
+                if (isAWhite) {
+                    ADepthSum += whiteBot->currentDepth;
+                    AMoves += 1;
+                } else {
+                    BDepthSum += whiteBot->currentDepth;
+                    BMoves += 1;
+                }
             } else {
-                process2::TEST_VAR = true;
+                bestResult = blackBot->getBestMove(board, false);
+                if (isAWhite) {
+                    BDepthSum += blackBot->currentDepth;
+                    BMoves += 1;
+                } else {
+                    ADepthSum += blackBot->currentDepth;
+                    AMoves += 1;
+                }
             }
 
-            auto bestResult = process2::getBestMove(board, false);
+            // Error checking
+            if (startZobristHash != board.zobristHash) {
+                // Probably error in play move/undo move
+                printf("ERROR DETECTED : Zobrist hash changed after getBestMove\n");
+                printBoard(board);
+                printf("-> Game n°%d (index %d)\n", i+1, i);
+                if (isAWhite) {
+                    printf("-> A white\n");
+                } else {
+                    printf("-> B white\n");
+                }
+                printf("-> Start hash (%llx), End hash (%llx)\n", startZobristHash, board.zobristHash);
+                std::cout.flush();
+                throw;
+            }
 
             board.playMove(bestResult.move);
-            process2::onMovePlayed(board);
+
+            // Error checking
+            if (board.state == NEUTRAL) {
+                if (whiteTurn == board.whiteTurn) {
+                    // Probably error in move undo
+                    printf("ERROR DETECTED : Board turn did not change\n");
+                    printBoard(board);
+                    printf("-> Game n°%d (index %d)\n", i+1, i);
+                    if (isAWhite) {
+                        printf("-> A white\n");
+                    } else {
+                        printf("-> B white\n");
+                    }
+                    std::cout.flush();
+                    throw;
+                }
+                if (bestResult.move == NO_MOVE) {
+                    printf("ERROR DETECTED : Null move played\n");
+                    printBoard(board);
+                    printf("-> Game n°%d (index %d)\n", i+1, i);
+                    if (isAWhite) {
+                        printf("-> A white\n");
+                    } else {
+                        printf("-> B white\n");
+                    }
+                    if (whiteTurn) {
+                        printf("-> White turn\n");
+
+                        printf("| Principal variation (size %d):\n", whiteBot->principalVariation.size());
+                        for (const Move &move : whiteBot->principalVariation) {
+                            printMove(move);
+                        }
+                    } else {
+                        printf("-> Black turn\n");
+
+                        printf("| Principal variation (size %d):\n", blackBot->principalVariation.size());
+                        for (const Move &move : blackBot->principalVariation) {
+                            printMove(move);
+                        }
+                    }
+                    std::cout.flush();
+                    throw;
+                }
+            } 
+            
+            whiteBot->onMovePlayed(board);
+            blackBot->onMovePlayed(board);
             moveCount += 1;
         }
 
@@ -106,63 +149,86 @@ void doTests2(bool isAWhite, Board * boards) {
 
         if (board.state == WHITE_WON) {
             if (isAWhite) {
-                printf("A wins\n");
+                printf("A wins");
                 AWins += 1;
             } else {
-                printf("B wins\n");
+                printf("B wins");
                 BWins += 1;
             }
         } else if (board.state == BLACK_WON) {
             if (isAWhite) {
-                printf("B wins\n");
+                printf("B wins");
                 BWins += 1;
             } else {
-                printf("A wins\n");
+                printf("A wins");
                 AWins += 1;
             }
         } else {
+            printf("Draw");
             draws += 1;
         }
+
+        float averageDepthA = std::round(100.0f * ((float) ADepthSum) / ((float) AMoves)) * 0.01f;
+        float averageDepthB = std::round(100.0f * ((float) BDepthSum) / ((float) BMoves)) * 0.01f;
+
+        float depthDiff = averageDepthB-averageDepthA;
+
+        depthDiffs += depthDiff;
+
+        printf(" - Average depths A %f, B %f, diff %f\n", averageDepthA, averageDepthB, depthDiff);
     }
 }
 
 int main(int argc, char* argv[]) {
-    if (argc > 1) {
+    genBitboardConstants();
+    genZobristKeys();
+    initBot();
+
+    int startIndex = 0;
+    if (argc == 2) {
         POSITIONS_COUNT = atoi(argv[1]);
+    } else if (argc == 3) {
+        startIndex = atoi(argv[1]);
+        int endIndex = atoi(argv[2]);
+
+        POSITIONS_COUNT = endIndex - startIndex;
     } else {
-        POSITIONS_COUNT = 20; // 100;
+        POSITIONS_COUNT = 20;
     }
 
     printf("Testing %dx2 Positions...\n", POSITIONS_COUNT);
 
-
-    
     TOTAL_PLAYED = POSITIONS_COUNT * 2.0f;
-
-    genBitboardConstants();
-    genZobristKeys();
-    process1::initBot();
-    process2::initBot();
 
     std::ifstream positionsFile ("testing/positions.bin", std::ios_base::binary);
 
     Board boards[POSITIONS_COUNT];
     for (int i = 0 ; i < POSITIONS_COUNT ; i++) {
-        boards[i] = loadBoardFile(positionsFile, i);
+        boards[i] = loadBoardFile(positionsFile, startIndex + i);
     }
     positionsFile.close();
 
-    std::thread thread1 (doTests1, false, (Board *) boards);
-    std::thread thread2 (doTests2, true, (Board *) boards);
+    int firstHalfCount = POSITIONS_COUNT / 2;
+    int secondHalfCount = POSITIONS_COUNT - firstHalfCount;
+
+    // Create 4 threads to do parallel computation
+    std::thread thread1 (doTests, false, (Board *) boards, 0, firstHalfCount);
+    std::thread thread2 (doTests, true, (Board *) boards, 0, firstHalfCount);
+
+    std::thread thread3 (doTests, false, (Board *) boards, firstHalfCount, secondHalfCount);
+    std::thread thread4 (doTests, true, (Board *) boards, firstHalfCount, secondHalfCount);
 
     thread1.join();
     thread2.join();
+    thread3.join();
+    thread4.join();
 
     printf("\n --- Results --- \n");
     printf("| Over %dx2 games played :\n", POSITIONS_COUNT);
-    printf("| %d won by A (%f %)", AWins.load(), 100.0f * AWins.load()/TOTAL_PLAYED);
-    printf("| %d won by B (%f %)", BWins.load(), 100.0f * BWins.load()/TOTAL_PLAYED);
-    printf("| %d draws (%f %)", draws.load(), 100.0f * draws.load()/TOTAL_PLAYED);
+    printf("| %d Won by A (%f %)\n", AWins.load(), 100.0f * AWins.load()/TOTAL_PLAYED);
+    printf("| %d Won by B (%f %)\n", BWins.load(), 100.0f * BWins.load()/TOTAL_PLAYED);
+    printf("| %d Draws (%f %)\n", draws.load(), 100.0f * draws.load()/TOTAL_PLAYED);
+    printf("| Average depth gain by B : %f\n", depthDiffs.load()/TOTAL_PLAYED);
 
     return EXIT_SUCCESS;
 }

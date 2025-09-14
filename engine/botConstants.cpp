@@ -1,277 +1,304 @@
+#ifndef BOT_CONSTANTS
+#define BOT_CONSTANTS
+
 #include "gameConstants.cpp"
 
-// Variable used to test features
-bool TEST_VAR;
+
+// Less mesures = better performances
+#define NO_MESURE 0
+#define LOW_MESURE 1
+#define ALL_MESURE 2
+#define MESURE_LEVEL ALL_MESURE // ALL_MESURE
+
+
+// Values are in centipawns
 
 // Time that the bot can take if he wants more depth, in milliseconds
-const float TARGET_BOT_TIME = /*100.0f;*/ 3000.0f; // 0.0001f;
+const float TARGET_BOT_TIME = /*100.0f;*/ 5000.0f /*15000.0f;*/ /*0.0001f*/;
+// Time at which the search is cancelled it is too long, in milliseconds
+const float MAX_BOT_TIME = 20000.0f;    // 20000.0f;
 
-const int TT_BITS = 20; // 20;
+const int TT_BITS = 22; // 20;
+const uint64_t TTSize = 1ULL << TT_BITS;
+const uint64_t TTMask = TTSize - 1ULL;
 
-const int NORMAL_DEPTH = 8; // 7;
-const int MAX_QUIESCENCE_DEPTH = 4;   // Limits Quiescence Search
-// const int MAX_SEARCH_EXTENSION = 1;
+const int NORMAL_DEPTH = 8; // 8
+const int MAX_QUIESCENCE_DEPTH = 4; //4;   // Limits Quiescence Search - 
+const int MAX_SEARCH_EXTENSION = 1;
 
-const float checkValue = 0.5f;
-const float mobilityValue = 0.05f;
+// Should have some margin from INT32_MIN to prevent underflows
+const int INFINITE_SCORE =       999999'99;
+const int CHECKMATE_BASE_SCORE = 9999'99;
 
-// Between 0 and 1, proportion of points keeped for being attacked (feels danger)
-const float attackedPenaltyRatio = 0.65f;
+const int checkValue = 60;
+const int mobilityValue = 5;
+
+// Between 0 and 128, proportion of points keeped for being attacked (feels danger)
+const int attackedPenaltyRatio = 0.70 * 128;
 // Proportion of points keeped for being attacked and defended at the same time
-const float attackedDefendedPenaltyRatio = 0.80f;
+const int attackedDefendedPenaltyRatio = 0.85 * 128;
 
 // Given when a player has the right to play
-const float turnBonus = 0.2f;
+const int turnBonus = 20;
 // Bonus when the player has at least two bishops
-const float bishopPairBonus = 0.4f;
+const int bishopPairBonus = 40;
 // Penalty for having two knights (redundency)
-const float knightPairPenalty = 0.2f;
+const int knightPairPenalty = 20;
 // Penalty for having two rooks (redundency)
-const float rookPairPenalty = 0.2f;
+const int rookPairPenalty = 20;
 
 // Bonus for having short castle available
-const float shortCastleBonus = 0.3f;
+const int shortCastleBonus = 30;
 // Bonus for having long castle available
-const float longCastleBonus = 0.2f;
+const int longCastleBonus = 20;
 
 // Bonus for having rook aligned with the opponent's queen
-const float rookQueenAlignedBonus = 0.15f;
+const int rookQueenAlignedBonus = 15;
 // Bonus for having rook in a column with only pawns
-const float rookSemiOpenColumnBonus = 0.2f;
+const int rookSemiOpenColumnBonus = 20;
 // Bonus for having rook in a column with no other piece
-const float rookOpenColumnBonus = 0.3f;
+const int rookOpenColumnBonus = 30;
+// Bonus for being defended by another rook
+const int rookConnectedBonus = 15;
 
 // Bonus for each pawn protecting a pawn/knight
-const float pawnProtectsBonus = 0.1f;
+const int pawnProtectsBonus = 10;
 // Malus for each isolated pawn (with no pawn of the same color in an adjascent column)
-const float isolatedPawnMalus = 0.2f;
+const int isolatedPawnMalus = 30;
+// Malus for each overextended pawn (with no pawn in adjascent columns, which are at most 2 squares behind)
+// can't cumulate with isolated pawn malus
+const int overextendedPawnMalus = 15;
 // Bonus for having a pawn with no enemy pawns in the way (takes the y position for black and 7-y for white)
-const float passedPawnBonuses[8] = {
-    0.30f,   // impossible
-    0.30f,
-    0.35f,
-    0.40f,
-    0.45f,
-    0.55f,
-    0.70f,
-    0.00f    // impossible
+const int passedPawnBonuses[8] = {
+    00,   // impossible
+    30,
+    40,
+    55,
+    70,
+    90,
+    100,
+    00    // impossible
 };
 
 // Bonus for each pawn near the king
-const float kingPawnsBonus = 0.20f;
+const int kingPawnsBonus = 20;
 // Malus for each square of the king zone which is attacked
-const float attackedKingZoneMalus = 0.15f;
+const int attackedKingZoneMalus = 15;
+// Malus for each one open file next to the king
+const int kingOpenFilesMalus = 30;
+// Malus for each square of virtual mobility for the king when replaced by a queen
+const int kingVirtualMobilityMalus = 5;
+
+const int FUTILITY_MARGIN = 300;
 
 // DEPRECATED, NOW BASED ON CAPTURES - Lower = less strict = more search
-// const float quiescenceThreshold = 0.65f;
-
-/*BAD float quiescenceThresholdMinGain = 0.5f;
-float quiescenceThresholdMaxLoss = -2.8f;*/
+// const float quiescenceThreshold = 0.65f;*/
 
 // Reduction of depth during a null move pruning, includes normal depth decrement
 const int NullMovePruningReduction = 3;
+const int NMPRejectMargin = 50;      // If the position is farther from the pruning bounds, avoid NMP
 
 // Starts late Move Reduction when depth is smaller than this value
 const int maxLMRDepth = NORMAL_DEPTH - 2;
-// DERECATED const int LMRLossThreshold = -0.9f;     // More negative = more strict
-const int LMR_MOVE_NUMBER = 3;  // Number of moves after which LMR is applied
-const int LMR_REDUCTION = 2;    // Includes normal depth decrement (1 => nothing happens)
+const int LMR_MOVE_NUMBER = 4;  // Number of moves from which LMR is applied
 
-const float NULL_WINDOW_EPLISON = 0.001f;
+// const float DELTA_PRUNING_MARGIN = 0.2f; UNUSED
 
 // Pawn structure - Penalty of having too much pawns aligned
-const float alignedPawnPenalties[8] = {
-    0.00f,
-    0.35f,
-    0.75f,
-    1.00f,      // Almost impossible
-    1.30f,
-    1.60f,
-    1.90f,
-    2.20f,
+const int alignedPawnPenalties[8] = {
+    000,
+    035,
+    075,
+    100,      // Almost impossible
+    130,
+    160,
+    190,
+    220,
 };
 
-const float piecesStandardValue[6] = {
-    1.0f,
-    3.0f,
-    3.0f,
-    5.0f,
-    9.0f,
-    0.0f
+const int piecesStandardValue[6] = {
+    100,
+    300,
+    300,
+    500,
+    900,
+    000
 };
 
 // From white's perspective
-float pieceValuesPosOpening[6][8][8] = {
+int pieceValuesPosOpening[6][8][8] = {
     {     // PAWN
-        {2.00, 2.00, 2.00, 2.00, 2.00, 2.00, 2.00, 2.00},
-        {1.60, 1.60, 1.60, 1.70, 1.70, 1.60, 1.60, 1.60},
-        {1.30, 1.30, 1.35, 1.60, 1.60, 1.35, 1.30, 1.30},
-        {1.15, 1.15, 1.20, 1.55, 1.55, 1.20, 1.15, 1.15},
-        {1.10, 1.10, 1.15, 1.50, 1.50, 1.15, 1.10, 1.10},
-        {1.08, 1.05, 1.05, 1.10, 1.10, 1.05, 1.05, 1.08},
-        {1.10, 1.10, 1.00, 1.00, 1.00, 1.00, 1.10, 1.10},
-        {0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00}
+        {200, 200, 200, 200, 200, 200, 200, 200},
+        {170, 170, 170, 170, 170, 170, 170, 170},
+        {135, 135, 140, 165, 165, 140, 135, 135},
+        {115, 120, 130, 155, 155, 130, 120, 115},
+        {108, 110, 115, 150, 150, 115, 110, 108},
+        {105, 105, 105, 110, 110, 105, 105, 105},
+        {115, 115, 100,  95,  95, 100, 115, 115},
+        {000, 000, 000, 000, 000, 000, 000, 000}
     }, {  // KNIGHT
-        {2.70, 2.80, 2.90, 3.00, 3.00, 2.90, 2.80, 2.70},
-        {2.80, 3.05, 3.05, 3.05, 3.05, 3.05, 3.05, 2.80},
-        {2.85, 3.10, 3.20, 3.20, 3.20, 3.20, 3.10, 2.85},
-        {2.85, 3.20, 3.30, 3.30, 3.30, 3.30, 3.20, 2.85},
-        {2.85, 3.20, 3.30, 3.25, 3.25, 3.30, 3.20, 2.85},
-        {2.85, 3.00, 3.20, 3.10, 3.10, 3.20, 3.00, 2.85},
-        {2.80, 2.95, 3.00, 3.00, 3.00, 3.00, 2.95, 2.80},
-        {2.70, 2.80, 2.90, 3.00, 3.00, 2.90, 2.80, 2.70}
+        {270, 280, 290, 300, 300, 290, 280, 270},
+        {280, 305, 305, 305, 305, 305, 305, 280},
+        {285, 310, 320, 325, 325, 320, 310, 285},
+        {285, 320, 330, 330, 330, 330, 320, 285},
+        {285, 320, 330, 325, 325, 330, 320, 285},
+        {285, 300, 320, 310, 310, 320, 300, 285},
+        {280, 295, 300, 300, 300, 300, 295, 280},
+        {270, 280, 290, 300, 300, 290, 280, 270}
     }, {  // BISHOP
-        {2.80, 2.90, 2.90, 2.90, 2.90, 2.90, 2.90, 2.80},
-        {2.90, 3.00, 3.00, 3.00, 3.00, 3.00, 3.00, 2.90},
-        {2.90, 3.00, 3.00, 3.00, 3.00, 3.00, 3.00, 2.90},
-        {2.90, 3.10, 3.05, 3.15, 3.15, 3.05, 3.10, 2.90},
-        {2.90, 3.10, 3.10, 3.15, 3.15, 3.10, 3.10, 2.90},
-        {2.90, 3.10, 3.05, 3.10, 3.10, 3.05, 3.10, 2.90},
-        {2.90, 3.15, 3.00, 3.00, 3.00, 3.00, 3.15, 2.90},
-        {2.80, 2.90, 2.90, 2.90, 2.90, 2.90, 2.90, 2.80}
+        {280, 290, 290, 290, 290, 290, 290, 280},
+        {290, 300, 300, 300, 300, 300, 300, 290},
+        {290, 300, 300, 300, 300, 300, 300, 290},
+        {290, 310, 305, 315, 315, 305, 310, 290},
+        {290, 310, 310, 315, 315, 310, 310, 290},
+        {290, 310, 305, 310, 310, 305, 310, 290},
+        {290, 315, 300, 300, 300, 300, 315, 290},
+        {280, 290, 290, 290, 290, 290, 290, 280}
     }, {  // ROOK
-        {5.00, 5.00, 5.00, 5.00, 5.00, 5.00, 5.00, 5.00},
-        {4.95, 5.05, 5.05, 5.05, 5.05, 5.05, 5.05, 4.95},
-        {4.95, 5.00, 5.00, 5.00, 5.00, 5.00, 5.00, 4.95},
-        {4.95, 5.00, 5.00, 5.00, 5.00, 5.00, 5.00, 4.95},
-        {4.95, 5.00, 5.00, 5.00, 5.00, 5.00, 5.00, 4.95},
-        {4.95, 5.00, 5.00, 5.00, 5.00, 5.00, 5.00, 4.95},
-        {4.95, 5.10, 5.10, 5.10, 5.10, 5.10, 5.10, 4.95},
-        {5.00, 5.10, 5.15, 5.20, 5.20, 5.15, 5.10, 5.00}
+        {490, 500, 500, 500, 500, 500, 500, 490},
+        {495, 505, 505, 505, 505, 505, 505, 495},
+        {495, 500, 500, 500, 500, 500, 500, 495},
+        {495, 500, 500, 500, 500, 500, 500, 495},
+        {495, 500, 500, 500, 500, 500, 500, 495},
+        {495, 500, 500, 500, 500, 500, 500, 495},
+        {500, 510, 510, 510, 510, 510, 510, 500},
+        {510, 505, 515, 520, 520, 515, 505, 510}
     }, {  // QUEEN
-        {8.70, 9.00, 9.00, 9.00, 9.00, 9.00, 9.00, 8.70},
-        {8.80, 8.90, 8.90, 8.90, 8.90, 8.90, 8.90, 8.80},
-        {8.60, 8.70, 8.70, 8.75, 8.75, 8.70, 8.70, 8.60},
-        {8.50, 8.55, 8.55, 8.55, 8.55, 8.55, 8.55, 8.50},
-        {8.50, 8.60, 8.60, 8.60, 8.60, 8.60, 8.60, 8.50},
-        {8.60, 8.70, 8.60, 8.60, 8.60, 8.60, 8.70, 8.60},
-        {8.70, 8.90, 8.90, 8.90, 8.90, 8.90, 8.90, 8.70},
-        {8.60, 8.80, 9.00, 9.00, 9.00, 9.00, 8.80, 8.60}
+        {870, 900, 900, 900, 900, 900, 900, 870},
+        {880, 890, 890, 890, 890, 890, 890, 880},
+        {860, 860, 870, 875, 875, 870, 860, 860},
+        {840, 845, 855, 855, 855, 855, 845, 840},
+        {840, 850, 855, 855, 855, 855, 850, 840},
+        {850, 860, 860, 860, 860, 860, 860, 850},
+        {860, 890, 890, 890, 890, 890, 890, 860},
+        {860, 880, 900, 900, 900, 900, 880, 860}
     }, {  // KING
-        {-0.1, -0.1, -0.1, -0.1, -0.1, -0.1, -0.1, -0.1},
-        {-0.1, -0.1, -0.1, -0.1, -0.1, -0.1, -0.1, -0.1},
-        {-0.1, -0.1, -0.1, -0.1, -0.1, -0.1, -0.1, -0.1},
-        {-0.1, -0.1, -0.1, -0.1, -0.1, -0.1, -0.1, -0.1},
-        {-0.1, -0.1, -0.1, -0.1, -0.1, -0.1, -0.1, -0.1},
-        {-0.1, -0.1, -0.1, -0.1, -0.1, -0.1, -0.1, -0.1},
-        {-0.1, -0.1, -0.1, -0.1, -0.1, -0.1, -0.1, -0.1},
-        {0.40, 0.70, 0.40, 0.15, 0.15, 0.40, 0.70, 0.40}
+        {-70, -70, -70, -70, -70, -70, -70, -70},
+        {-60, -60, -60, -60, -60, -60, -60, -60},
+        {-50, -50, -50, -50, -50, -50, -50, -50},
+        {-40, -40, -40, -40, -40, -40, -40, -40},
+        {-30, -30, -30, -30, -30, -30, -30, -30},
+        {-20, -20, -20, -20, -20, -20, -20, -20},
+        {-10, -10, -10, -10, -10, -10, -10, -10},
+        { 40,  70,  40,  15,  15,  40,  70,  40}
     }
 };
 
-float pieceValuesPosMiddlegame[6][8][8] = {
+/*
+NOT USED ANYMORE
+int pieceValuesPosMiddlegame[6][8][8] = {
     {     // PAWN
-        {2.00, 2.00, 2.00, 2.00, 2.00, 2.00, 2.00, 2.00},
-        {1.60, 1.60, 1.60, 1.65, 1.65, 1.60, 1.60, 1.60},
-        {1.40, 1.40, 1.40, 1.50, 1.50, 1.40, 1.40, 1.40},
-        {1.20, 1.20, 1.25, 1.45, 1.45, 1.25, 1.20, 1.20},
-        {1.10, 1.10, 1.20, 1.40, 1.40, 1.20, 1.10, 1.10},
-        {1.08, 1.05, 1.05, 1.10, 1.10, 1.05, 1.05, 1.08},
-        {1.15, 1.15, 1.10, 1.00, 1.00, 1.10, 1.15, 1.15},
-        {0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00}
+        {200, 200, 200, 200, 200, 200, 200, 200},
+        {160, 160, 160, 165, 165, 160, 160, 160},
+        {140, 140, 140, 150, 150, 140, 140, 140},
+        {115, 120, 125, 145, 145, 125, 120, 115},
+        {110, 110, 120, 140, 140, 120, 110, 110},
+        {108, 105, 105, 110, 110, 105, 105, 108},
+        {115, 115, 110, 100, 100, 110, 115, 115},
+        {000, 000, 000, 000, 000, 000, 000, 000}
     }, {  // KNIGHT
-        {2.70, 2.80, 2.90, 3.00, 3.00, 2.90, 2.80, 2.70},
-        {2.80, 3.05, 3.05, 3.05, 3.05, 3.05, 3.05, 2.80},
-        {2.85, 3.10, 3.20, 3.20, 3.20, 3.20, 3.10, 2.85},
-        {2.85, 3.20, 3.30, 3.30, 3.30, 3.30, 3.20, 2.85},
-        {2.85, 3.20, 3.30, 3.25, 3.25, 3.30, 3.20, 2.85},
-        {2.85, 3.00, 3.20, 3.10, 3.10, 3.20, 3.00, 2.85},
-        {2.80, 2.95, 3.00, 3.00, 3.00, 3.00, 2.95, 2.80},
-        {2.70, 2.80, 2.90, 3.00, 3.00, 2.90, 2.80, 2.70}
+        {270, 280, 290, 300, 300, 290, 280, 270},
+        {280, 305, 305, 305, 305, 305, 305, 280},
+        {285, 310, 320, 325, 325, 320, 310, 285},
+        {285, 320, 330, 330, 330, 330, 320, 285},
+        {285, 320, 330, 325, 325, 330, 320, 285},
+        {285, 300, 320, 310, 310, 320, 300, 285},
+        {280, 295, 300, 300, 300, 300, 295, 280},
+        {270, 280, 290, 300, 300, 290, 280, 270}
     }, {  // BISHOP
-        {2.80, 2.90, 2.90, 2.90, 2.90, 2.90, 2.90, 2.80},
-        {2.90, 3.00, 3.00, 3.00, 3.00, 3.00, 3.00, 2.90},
-        {2.90, 3.00, 3.00, 3.00, 3.00, 3.00, 3.00, 2.90},
-        {2.90, 3.10, 3.05, 3.15, 3.15, 3.05, 3.10, 2.90},
-        {2.90, 3.10, 3.10, 3.15, 3.15, 3.10, 3.10, 2.90},
-        {2.90, 3.10, 3.05, 3.10, 3.10, 3.05, 3.10, 2.90},
-        {2.90, 3.15, 3.00, 3.00, 3.00, 3.00, 3.15, 2.90},
-        {2.80, 2.90, 2.90, 2.90, 2.90, 2.90, 2.90, 2.80}
+        {280, 290, 290, 290, 290, 290, 290, 280},
+        {290, 300, 300, 300, 300, 300, 300, 290},
+        {290, 300, 300, 300, 300, 300, 300, 290},
+        {290, 310, 305, 315, 315, 305, 310, 290},
+        {290, 310, 310, 315, 315, 310, 310, 290},
+        {290, 310, 305, 310, 310, 305, 310, 290},
+        {290, 315, 300, 300, 300, 300, 315, 290},
+        {280, 290, 290, 290, 290, 290, 290, 280}
     }, {  // ROOK
-        {5.00, 5.00, 5.00, 5.00, 5.00, 5.00, 5.00, 5.00},
-        {4.95, 5.05, 5.05, 5.05, 5.05, 5.05, 5.05, 4.95},
-        {4.95, 5.00, 5.00, 5.00, 5.00, 5.00, 5.00, 4.95},
-        {4.95, 5.00, 5.00, 5.00, 5.00, 5.00, 5.00, 4.95},
-        {4.95, 5.00, 5.00, 5.00, 5.00, 5.00, 5.00, 4.95},
-        {4.95, 5.00, 5.05, 5.05, 5.05, 5.05, 5.00, 4.95},
-        {5.00, 5.10, 5.10, 5.15, 5.15, 5.10, 5.10, 5.00},
-        {5.00, 5.10, 5.15, 5.20, 5.20, 5.15, 5.10, 5.00}
+        {500, 505, 510, 510, 510, 510, 505, 500},
+        {505, 510, 515, 520, 520, 515, 510, 505},
+        {500, 505, 510, 510, 510, 510, 505, 500},
+        {495, 500, 500, 505, 505, 500, 500, 495},
+        {495, 500, 500, 500, 500, 500, 500, 495},
+        {495, 500, 505, 510, 510, 505, 500, 495},
+        {500, 510, 510, 515, 515, 510, 510, 500},
+        {510, 505, 515, 520, 520, 515, 505, 510}
     }, {  // QUEEN
-        {8.90, 9.00, 9.00, 9.00, 9.00, 9.00, 9.00, 8.90},
-        {8.95, 9.10, 9.10, 9.05, 9.05, 9.10, 9.10, 8.95},
-        {8.95, 9.10, 9.10, 9.08, 9.08, 9.10, 9.10, 8.95},
-        {8.95, 9.10, 9.10, 9.10, 9.10, 9.10, 9.10, 8.95},
-        {8.95, 9.10, 9.10, 9.10, 9.10, 9.10, 9.10, 8.95},
-        {8.95, 9.10, 9.10, 9.08, 9.08, 9.10, 9.10, 8.95},
-        {8.95, 9.10, 9.10, 9.05, 9.05, 9.10, 9.10, 8.95},
-        {8.90, 8.95, 9.00, 9.00, 9.00, 9.00, 8.95, 8.90}
+        {890, 900, 900, 900, 900, 900, 900, 890},
+        {895, 910, 910, 905, 905, 910, 910, 895},
+        {895, 910, 910, 908, 908, 910, 910, 895},
+        {895, 910, 910, 910, 910, 910, 910, 895},
+        {895, 910, 910, 910, 910, 910, 910, 895},
+        {895, 910, 910, 908, 908, 910, 910, 895},
+        {895, 910, 910, 905, 905, 910, 910, 895},
+        {890, 895, 900, 900, 900, 900, 895, 890}
     }, {  // KING
-        {-0.1, -0.1, -0.1, -0.1, -0.1, -0.1, -0.1, -0.1},
-        {-0.1, -0.1, -0.1, -0.1, -0.1, -0.1, -0.1, -0.1},
-        {-0.1, -0.1, -0.1, -0.1, -0.1, -0.1, -0.1, -0.1},
-        {-0.1, -0.1, -0.1, -0.1, -0.1, -0.1, -0.1, -0.1},
-        {-0.1, -0.1, -0.1, -0.1, -0.1, -0.1, -0.1, -0.1},
-        {-0.1, -0.1, -0.1, -0.1, -0.1, -0.1, -0.1, -0.1},
-        {0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00},
-        {0.40, 0.70, 0.40, 0.10, 0.10, 0.40, 0.70, 0.40}
+        {-40, -40, -40, -40, -40, -40, -40, -40},
+        {-35, -35, -35, -35, -35, -35, -35, -35},
+        {-30, -30, -30, -30, -30, -30, -30, -30},
+        {-25, -25, -25, -25, -25, -25, -25, -25},
+        {-20, -20, -20, -20, -20, -20, -20, -20},
+        {-15, -15, -15, -15, -15, -15, -15, -15},
+        { 00,  00,  00,  00,  00,  00,  00,  00},
+        { 40,  70,  40,  10,  10,  40,  70,  40}
     }
-};
+};*/
 
-float pieceValuesPosEndgame[6][8][8] = {
+int pieceValuesPosEndgame[6][8][8] = {
     {     // PAWN
-        {2.00, 2.00, 2.00, 2.00, 2.00, 2.00, 2.00, 2.00},
-        {1.80, 1.80, 1.80, 1.80, 1.80, 1.80, 1.80, 1.80},
-        {1.50, 1.50, 1.50, 1.50, 1.50, 1.50, 1.50, 1.50},
-        {1.40, 1.40, 1.40, 1.45, 1.45, 1.40, 1.40, 1.40},
-        {1.30, 1.30, 1.30, 1.40, 1.40, 1.30, 1.30, 1.30},
-        {1.20, 1.20, 1.20, 1.20, 1.20, 1.20, 1.20, 1.20},
-        {1.00, 1.00, 1.00, 1.00, 1.00, 1.00, 1.00, 1.00},
-        {0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00}
+        {200, 200, 200, 200, 200, 200, 200, 200},
+        {190, 190, 190, 190, 190, 190, 190, 190},
+        {160, 160, 160, 160, 160, 160, 160, 160},
+        {145, 145, 145, 150, 150, 145, 145, 145},
+        {130, 130, 130, 140, 140, 130, 130, 130},
+        {120, 120, 120, 120, 120, 120, 120, 120},
+        {100, 100, 100, 100, 100, 100, 100, 100},
+        {000, 000, 000, 000, 000, 000, 000, 000}
     }, {  // KNIGHT
-        {2.70, 2.80, 2.90, 3.00, 3.00, 2.90, 2.80, 2.70},
-        {2.80, 3.05, 3.05, 3.05, 3.05, 3.05, 3.05, 2.80},
-        {2.85, 3.10, 3.20, 3.20, 3.20, 3.20, 3.10, 2.85},
-        {2.85, 3.20, 3.30, 3.30, 3.30, 3.30, 3.20, 2.85},
-        {2.85, 3.20, 3.30, 3.25, 3.25, 3.30, 3.20, 2.85},
-        {2.85, 3.00, 3.20, 3.10, 3.10, 3.20, 3.00, 2.85},
-        {2.80, 2.95, 3.00, 3.00, 3.00, 3.00, 2.95, 2.80},
-        {2.70, 2.80, 2.90, 3.00, 3.00, 2.90, 2.80, 2.70}
+        {260, 270, 280, 290, 290, 280, 270, 260},
+        {270, 295, 295, 295, 295, 295, 295, 270},
+        {275, 300, 310, 315, 315, 310, 300, 275},
+        {275, 310, 325, 330, 330, 325, 310, 275},
+        {275, 310, 320, 315, 315, 320, 310, 275},
+        {275, 290, 310, 300, 300, 310, 290, 275},
+        {270, 285, 290, 290, 290, 290, 285, 270},
+        {260, 270, 280, 290, 290, 280, 270, 260}
     }, {  // BISHOP
-        {2.80, 2.90, 2.90, 2.90, 2.90, 2.90, 2.90, 2.80},
-        {2.90, 3.00, 3.00, 3.00, 3.00, 3.00, 3.00, 2.90},
-        {2.90, 3.00, 3.00, 3.00, 3.00, 3.00, 3.00, 2.90},
-        {2.90, 3.10, 3.05, 3.15, 3.15, 3.05, 3.10, 2.90},
-        {2.90, 3.10, 3.10, 3.15, 3.15, 3.10, 3.10, 2.90},
-        {2.90, 3.10, 3.05, 3.10, 3.10, 3.05, 3.10, 2.90},
-        {2.90, 3.15, 3.00, 3.00, 3.00, 3.00, 3.15, 2.90},
-        {2.80, 2.90, 2.90, 2.90, 2.90, 2.90, 2.90, 2.80}
+        {280, 290, 290, 290, 290, 290, 290, 280},
+        {290, 300, 300, 300, 300, 300, 300, 290},
+        {290, 300, 300, 300, 300, 300, 300, 290},
+        {290, 310, 305, 315, 315, 305, 310, 290},
+        {290, 310, 310, 315, 315, 310, 310, 290},
+        {290, 310, 305, 310, 310, 305, 310, 290},
+        {290, 315, 300, 300, 300, 300, 315, 290},
+        {280, 290, 290, 290, 290, 290, 290, 280}
     }, {  // ROOK
-        {5.00, 5.00, 5.00, 5.00, 5.00, 5.00, 5.00, 5.00},
-        {4.95, 5.15, 5.15, 5.15, 5.15, 5.15, 5.15, 4.95},
-        {4.95, 5.10, 5.10, 5.10, 5.10, 5.10, 5.10, 4.95},
-        {4.95, 5.05, 5.05, 5.05, 5.05, 5.05, 5.05, 4.95},
-        {4.95, 5.00, 5.00, 5.00, 5.00, 5.00, 5.00, 4.95},
-        {4.95, 5.00, 5.00, 5.00, 5.00, 5.00, 5.00, 4.95},
-        {4.95, 5.10, 5.10, 5.10, 5.10, 5.10, 5.10, 4.95},
-        {5.00, 5.10, 5.15, 5.18, 5.18, 5.15, 5.10, 5.00}
+        {490, 500, 505, 505, 505, 505, 500, 490},
+        {495, 515, 525, 525, 525, 525, 515, 495},
+        {500, 510, 520, 520, 520, 520, 510, 500},
+        {500, 505, 512, 515, 515, 512, 505, 500},
+        {495, 500, 507, 505, 505, 507, 500, 495},
+        {495, 500, 500, 500, 500, 500, 500, 495},
+        {495, 510, 510, 510, 510, 510, 510, 495},
+        {490, 510, 515, 518, 518, 515, 510, 490}
     }, {  // QUEEN
-        {8.90, 8.95, 8.95, 8.95, 8.95, 8.95, 8.95, 8.90},
-        {8.95, 9.20, 9.20, 9.20, 9.20, 9.20, 9.20, 8.95},
-        {8.95, 9.20, 9.25, 9.25, 9.25, 9.25, 9.20, 8.95},
-        {8.95, 9.20, 9.25, 9.28, 9.28, 9.25, 9.20, 8.95},
-        {8.95, 9.20, 9.25, 9.28, 9.28, 9.25, 9.20, 8.95},
-        {8.95, 9.20, 9.25, 9.25, 9.25, 9.25, 9.20, 8.95},
-        {8.95, 9.20, 9.20, 9.20, 9.20, 9.20, 9.20, 8.95},
-        {8.90, 8.95, 8.95, 8.95, 8.95, 8.95, 8.95, 8.90}
+        {890, 895, 895, 895, 895, 895, 895, 890},
+        {895, 920, 920, 920, 920, 920, 920, 895},
+        {895, 920, 925, 925, 925, 925, 920, 895},
+        {895, 920, 925, 928, 928, 925, 920, 895},
+        {895, 920, 925, 928, 928, 925, 920, 895},
+        {895, 920, 925, 925, 925, 925, 920, 895},
+        {895, 920, 920, 920, 920, 920, 920, 895},
+        {890, 895, 895, 895, 895, 895, 895, 890}
     }, {  // KING
-        {0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00},
-        {0.00, 0.05, 0.20, 0.20, 0.20, 0.20, 0.05, 0.00},
-        {0.00, 0.20, 0.25, 0.30, 0.30, 0.25, 0.20, 0.00},
-        {0.00, 0.20, 0.30, 0.35, 0.35, 0.30, 0.20, 0.00},
-        {0.00, 0.20, 0.30, 0.35, 0.35, 0.30, 0.20, 0.00},
-        {0.00, 0.20, 0.25, 0.30, 0.30, 0.25, 0.20, 0.00},
-        {0.00, 0.05, 0.20, 0.20, 0.20, 0.20, 0.05, 0.00},
-        {0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00}
+        {-10, -05, 000, 000, 000, 000, -05, -10},
+        {-05, 015, 030, 035, 035, 030, 015, -05},
+        {000, 030, 045, 050, 050, 045, 030, 000},
+        {000, 035, 050, 055, 055, 050, 035, 000},
+        {000, 035, 050, 055, 055, 050, 035, 000},
+        {000, 030, 045, 050, 050, 045, 030, 000},
+        {-05, 015, 030, 035, 035, 030, 015, -05},
+        {-10, -05, 000, 000, 000, 000, -05, -10}
     }
 };
 
@@ -291,9 +318,9 @@ uint64_t passedPawnMasksWhite[8][8];
 uint64_t passedPawnMasksBlack[8][8];
 
 // From BLACK, WHITE perspective
-float pieceValuesPosOpeningColor[2][PIECE_TYPE_COUNT][64];
-float pieceValuesPosMiddlegameColor[2][PIECE_TYPE_COUNT][64];
-float pieceValuesPosEndgameColor[2][PIECE_TYPE_COUNT][64];
+int pieceValuesPosOpeningColor[2][PIECE_TYPE_COUNT][64];
+// int pieceValuesPosMiddlegameColor[2][PIECE_TYPE_COUNT][64];
+int pieceValuesPosEndgameColor[2][PIECE_TYPE_COUNT][64];
 
 constexpr void initBot() {
     for (int typeIndex = 0 ; typeIndex < PIECE_TYPE_COUNT ; typeIndex++) {
@@ -303,12 +330,12 @@ constexpr void initBot() {
 
                 // Copies the values
                 pieceValuesPosOpeningColor[WHITE][typeIndex][square] = pieceValuesPosOpening[typeIndex][y][x];
-                pieceValuesPosMiddlegameColor[WHITE][typeIndex][square] = pieceValuesPosMiddlegame[typeIndex][y][x];
+                // pieceValuesPosMiddlegameColor[WHITE][typeIndex][square] = pieceValuesPosMiddlegame[typeIndex][y][x];
                 pieceValuesPosEndgameColor[WHITE][typeIndex][square] = pieceValuesPosEndgame[typeIndex][y][x];
 
                 // Same but negative and reversed
                 pieceValuesPosOpeningColor[BLACK][typeIndex][square] = -pieceValuesPosOpening[typeIndex][7 - y][x];
-                pieceValuesPosMiddlegameColor[BLACK][typeIndex][square] = -pieceValuesPosMiddlegame[typeIndex][7 - y][x];
+                // pieceValuesPosMiddlegameColor[BLACK][typeIndex][square] = -pieceValuesPosMiddlegame[typeIndex][7 - y][x];
                 pieceValuesPosEndgameColor[BLACK][typeIndex][square] = -pieceValuesPosEndgame[typeIndex][7 - y][x];
             }
         }
@@ -330,3 +357,13 @@ constexpr void initBot() {
     }
 }
 
+// Gives the base value of pieces using piece square tables 
+inline int piecesValue(PieceType pieceType, bool isWhite, uint64_t occupency, int (*pieceValuesPosColor)[PIECE_TYPE_COUNT][64]) {
+    int sum = 0;
+    while (occupency) {
+        sum += pieceValuesPosColor[isWhite][pieceType][popLastSquare(occupency)];
+    }
+    return sum;
+}
+
+#endif

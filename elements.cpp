@@ -64,16 +64,23 @@ class Text {
         Text() {} // Should not be used
         Text(SDL_Renderer * renderer, Shared * shared, 
              TTF_Font * font, SDL_Point pos, Menu menu, const char * text,
-             bool hidden=false) {
+             bool hidden=false, bool isCenteredX=false, bool isCenteredY=false, bool transparentBg=false) {
             
             this->renderer = renderer;
             this->shared = shared;      
             
             this->font = font;
-            this->rect = {pos.x, pos.y, 0, 0};
+            this->pos = pos;
+            this->rect = {};
 
             this->menu = menu;
             this->hidden = hidden;
+
+            this->isCenteredX = isCenteredX;
+            this->isCenteredY = isCenteredY;
+
+            // NOT IMPLEMENTED
+            this->transparentBg = transparentBg;
 
             setText(text);
         }
@@ -83,13 +90,25 @@ class Text {
                 SDL_DestroyTexture(texture);
             }
 
-            SDL_Surface * textSurface = TTF_RenderUTF8_LCD(font, text, {0, 0, 0}, {255, 255, 255});
-            texture = SDL_CreateTextureFromSurface(renderer, textSurface);
-            
+            strcpy(this->text, text);
+
+            SDL_Surface * textSurface;
+            /*if (transparentBg) {
+                textSurface = TTF_RenderUTF8_LCD(font, text, {0, 0, 0}, {255, 255, 255, 0});
+            } else {*/
+                textSurface = TTF_RenderUTF8_LCD(font, text, {0, 0, 0}, {255, 255, 255});
+            //}
             rect.w = textSurface->w;
             rect.h = textSurface->h;
+            texture = SDL_CreateTextureFromSurface(renderer, textSurface);
 
             SDL_FreeSurface(textSurface);
+            computeRect();
+        }
+
+        void setPos(SDL_Point pos) {
+            this->pos = pos;
+            computeRect();
         }
 
         void update() {
@@ -99,7 +118,6 @@ class Text {
         }
 
         Menu menu;
-
         bool hidden;
 
     private:
@@ -107,8 +125,35 @@ class Text {
         Shared * shared;
 
         SDL_Texture * texture = nullptr;
-        SDL_Rect rect;
         TTF_Font * font;
+        SDL_Point pos;
+        SDL_Rect rect;
+
+        bool isCenteredX;
+        bool isCenteredY;
+
+        bool transparentBg;
+
+        char text[100];
+
+        void computeRect() {
+            /*Already done
+            int w, h;
+            TTF_SizeUTF8(font, text, &w, &h);
+            rect.w = w;
+            rect.h = h;*/
+
+            if (isCenteredX) {
+                rect.x = pos.x - rect.w/2;
+            } else {
+                rect.x = pos.x;
+            }
+            if (isCenteredY) {
+                rect.y = pos.y - rect.h/2;
+            } else {
+                rect.y = pos.y;
+            }
+        }
 };
 
 
@@ -131,9 +176,13 @@ class Elements {
             buttons[2] = &settingsBackButton;
 
             debugSettingText = {renderer, shared, shared->mediumFont, {140, 168}, Menu::settings, "Debug activé"};
-            counterText = {renderer, shared, shared->smallFont, {20, 20}, Menu::playing, "Noeuds évalués: 0", !shared->debugEnabled};
+            counterText = {renderer, shared, shared->smallFont, {20, 0}, Menu::playing, "Noeuds : 0", !shared->debugEnabled};
+            evaluationText = {renderer, shared, shared->verySmallFont, {0, 0}, Menu::playing, "0.0", false, true, false, true};
+            zobristHashText = {renderer, shared, shared->smallFont, {300, 0}, Menu::playing, " ",  !shared->debugEnabled};
             texts[0] = &debugSettingText;
             texts[1] = &counterText;
+            texts[2] = &evaluationText;
+            texts[3] = &zobristHashText;
         }
 
         Button settingsButton;
@@ -143,7 +192,9 @@ class Elements {
 
         Text debugSettingText;
         Text counterText;
-        Text * texts[2];
+        Text evaluationText;
+        Text zobristHashText;
+        Text * texts[4];
 };
 
 
@@ -156,9 +207,11 @@ void debugToggleCallback(Shared * shared) {
     if (shared->debugEnabled) {
         shared->elements->debugSettingText.setText("Debug activé");
         shared->elements->counterText.hidden = false;
+        shared->elements->zobristHashText.hidden = false;
     } else {
         shared->elements->debugSettingText.setText("Debug désactivé");
         shared->elements->counterText.hidden = true;
+        shared->elements->zobristHashText.hidden = true;
     }
 }
 void settingsBackCallback(Shared * shared) {

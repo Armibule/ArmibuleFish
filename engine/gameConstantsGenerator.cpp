@@ -12,12 +12,14 @@
 #include <x86intrin.h>
 
 
+typedef int Square;
+
 inline uint64_t bit(int x, int y) {
     // return 1ULL << ((7ULL - x) + 8ULL*(7ULL - y));
     // Faster
     return 1ULL << ( 63ULL - x - 8ULL*y );
 }
-inline uint64_t bit(int square) {
+inline uint64_t bit(Square square) {
     return 1ULL << ( 63ULL - square );
 } 
 
@@ -335,10 +337,11 @@ bool testMagic(uint64_t * occupencies, uint64_t * attacks, uint64_t magic, int h
     for (int i = 0 ; i < occupenciesCount ; i++) {
         bits = applyMagic(occupencies[i], magic, hashBits);
 
-        if (table[bits] == 0ULL) {
+        uint64_t currentEntry = table[bits];
+
+        if (currentEntry == 0ULL) {
             table[bits] = attacks[i];
-        } else if (table[bits] != attacks[i]) {
-            // printf("i=%d\n", i);
+        } else if (currentEntry != attacks[i]) {
             return false;
         }
     }
@@ -346,7 +349,7 @@ bool testMagic(uint64_t * occupencies, uint64_t * attacks, uint64_t magic, int h
     return true;
 }
 
-uint64_t findMagic(uint64_t * occupencies, uint64_t * attacks, int hashBits, uint64_t mask, int maskSize) {
+uint64_t findMagic(uint64_t * occupencies, uint64_t * attacks, int hashBits, uint64_t mask, int maskSize, int maxTests=10'000'000) {
     uint64_t magic;
     int testCount = 0;
 
@@ -356,15 +359,17 @@ uint64_t findMagic(uint64_t * occupencies, uint64_t * attacks, int hashBits, uin
     do {
         // Low number of 1 is better
         magic = random() & random() & random();
-        // printf("%llx\n", magic);
+
+        testCount += 1;
+        if (testCount > maxTests) {
+            return 0;
+        }
         if (std::popcount((magic * mask) & 0xFF00000000000000ULL) < 5) {
             continue;
         }
-
-        testCount += 1;
-        if (testCount % 1048576 == 0) {
+        /*if (testCount % 1048576 == 0) {
             printf("Tested: %d\n", testCount);
-        }
+        }*/
     } while (!testMagic(occupencies, attacks, magic, hashBits, table, maskSize));
 
     return magic;
@@ -377,7 +382,7 @@ void genRookMagic() {
     std::vector<int> ptrIndexes = {};
     std::vector<uint64_t> magicNumbers = {};
     std::vector<uint64_t> masks = {};
-    std::vector<int> bitSizes = {};
+    std::vector<int> hashSizes = {};
 
     int currentTableIndex = 0;
 
@@ -429,14 +434,28 @@ void genRookMagic() {
             
                 attacks[i] = attack;
             }
+
+            int hashBits = maskSize;
         
             // maskSize is perfect hashing, hope we find it
-            uint64_t magic = findMagic(occupencies, attacks, maskSize, mask, maskSize);
+            uint64_t magic = findMagic(occupencies, attacks, hashBits, mask, maskSize, INT32_MAX);
+            /*while (true) {
+                hashBits -= 1;
+                // Constructive collisions ?
+                uint64_t newMagic = findMagic(occupencies, attacks, hashBits, mask, maskSize);
+
+                if (newMagic == 0) {
+                    hashBits += 1;
+                    break;
+                } else {
+                    magic = newMagic;
+                }
+            }*/
 
             int tableSize = 1 << maskSize;
             uint64_t table[tableSize] = {};
             // Fills the table
-            testMagic(occupencies, attacks, magic, maskSize, table, maskSize);
+            testMagic(occupencies, attacks, magic, hashBits, table, maskSize);
 
             printf("    ");
             for (int i = 0 ; i < tableSize ; i++) {
@@ -447,7 +466,7 @@ void genRookMagic() {
             ptrIndexes.push_back(currentTableIndex);
             magicNumbers.push_back(magic);
             masks.push_back(mask);
-            bitSizes.push_back(maskSize);
+            hashSizes.push_back(hashBits);
 
             currentTableIndex += tableSize;
         }
@@ -458,7 +477,7 @@ void genRookMagic() {
     for (int i = 0 ; i < magicNumbers.size() ; i++) {
         printf(
             "    {&rookMagicTable[%d], 0x%llxULL, 0x%llxULL, %d},\n",
-            ptrIndexes[i], magicNumbers[i], masks[i], bitSizes[i]
+            ptrIndexes[i], magicNumbers[i], masks[i], hashSizes[i]
         );
     }
     printf("};\n");
@@ -471,7 +490,7 @@ void genBishopMagic() {
     std::vector<int> ptrIndexes = {};
     std::vector<uint64_t> magicNumbers = {};
     std::vector<uint64_t> masks = {};
-    std::vector<int> bitSizes = {};
+    std::vector<int> hashSizes = {};
 
     int currentTableIndex = 0;
 
@@ -532,13 +551,27 @@ void genBishopMagic() {
                 attacks[i] = attack;
             }
         
+            int hashBits = maskSize;
+        
             // maskSize is perfect hashing, hope we find it
-            uint64_t magic = findMagic(occupencies, attacks, maskSize, mask, maskSize);
+            uint64_t magic = findMagic(occupencies, attacks, hashBits, mask, maskSize, INT32_MAX);
+            /*while (true) {
+                hashBits -= 1;
+                // Constructive collisions ?
+                uint64_t newMagic = findMagic(occupencies, attacks, hashBits, mask, maskSize);
+
+                if (newMagic == 0) {
+                    hashBits += 1;
+                    break;
+                } else {
+                    magic = newMagic;
+                }
+            }*/
 
             int tableSize = 1 << maskSize;
             uint64_t table[tableSize] = {};
             // Fills the table
-            testMagic(occupencies, attacks, magic, maskSize, table, maskSize);
+            testMagic(occupencies, attacks, magic, hashBits, table, maskSize);
 
             printf("    ");
             for (int i = 0 ; i < tableSize ; i++) {
@@ -549,7 +582,7 @@ void genBishopMagic() {
             ptrIndexes.push_back(currentTableIndex);
             magicNumbers.push_back(magic);
             masks.push_back(mask);
-            bitSizes.push_back(maskSize);
+            hashSizes.push_back(hashBits);
 
             currentTableIndex += tableSize;
         }
@@ -560,7 +593,7 @@ void genBishopMagic() {
     for (int i = 0 ; i < magicNumbers.size() ; i++) {
         printf(
             "    {&bishopMagicTable[%d], 0x%llxULL, 0x%llxULL, %d},\n",
-            ptrIndexes[i], magicNumbers[i], masks[i], bitSizes[i]
+            ptrIndexes[i], magicNumbers[i], masks[i], hashSizes[i]
         );
     }
     printf("};\n");
@@ -578,7 +611,7 @@ void genAllMagic() {
         "   const uint64_t *tablePtr;\n"
         "   const uint64_t magic;\n"
         "   const uint64_t mask;\n"
-        "   const int bitSize;\n"
+        "   const int hashBits;\n"
         "};\n\n"
     );
 

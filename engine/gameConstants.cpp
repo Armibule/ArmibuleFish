@@ -24,11 +24,10 @@ enum GameState : int {
     BLACK_WON,
     DRAW
 };
-enum GamePhase : int {
-    OPENING,
-    MIDDLEGAME,
-    ENDGAME
-};
+// Number between 0 and 256, represents the progress from opening to endgame
+typedef int GamePhase;
+const GamePhase INITIAL_GAME_PHASE = 0;
+const GamePhase ENDGAME_THRESHOLD = 180;
 
 enum MoveType {
     NORMAL_MOVE,
@@ -46,8 +45,6 @@ struct BoardPos {
     char x;
     char y;
 };
-
-typedef int Square;
 
 constexpr Square makeSquare(int x, int y) {
     return x + 8u*y;
@@ -79,41 +76,12 @@ inline uint64_t bitToSquare(uint64_t &b) {
 }
 
 struct Move {
-    /*BoardPos startPos;
-    BoardPos endPos;*/
     Square startSquare;
     Square endSquare;
 
     PieceType promotionType = EMPTY;
     MoveType moveType = NORMAL_MOVE;
 };
-
-/*struct Increment {
-    char xinc;
-    char yinc;
-};
-Increment bishopInc[4] = {
-    {-1, -1},
-    {1, -1},
-    {-1, 1},
-    {1, 1}
-};
-Increment rookInc[4] = {
-    {-1, 0},
-    {1, 0},
-    {0, -1},
-    {0, 1}
-};
-Increment queenInc[8] = {
-    {-1, -1},
-    {1, -1},
-    {-1, 1},
-    {1, 1},
-    {-1, 0},
-    {1, 0},
-    {0, -1},
-    {0, 1}
-};*/
 
 
 const int ROW_COUNT = 8;
@@ -154,8 +122,16 @@ inline bool isInBoard(int x, int y) {
 inline bool canPawnDoubleMove(int y, bool isWhite) {
     return (y == 1 && !isWhite) || (y == 6 && isWhite);
 }
+inline bool canPawnDoubleMove(uint64_t firstPushBit, bool isWhite) {
+    return ((firstPushBit & 0b00000000'00000000'11111111'00000000'00000000'00000000'00000000'00000000ULL) && !isWhite) || 
+           ((firstPushBit & 0b00000000'00000000'00000000'00000000'00000000'11111111'00000000'00000000ULL) && isWhite);
+}
 inline bool canPawnPromote(int y, bool isWhite) {
     return (y == 7 && !isWhite) || (y == 0 && isWhite);
+}
+inline bool canPawnPromote(uint64_t b, bool isWhite) {
+    return ((b & 0b00000000'00000000'00000000'00000000'00000000'00000000'00000000'11111111ULL) && !isWhite) || 
+           ((b & 0b11111111'00000000'00000000'00000000'00000000'00000000'00000000'00000000ULL) && isWhite);
 }
 
 const bool BLACK = false;
@@ -341,8 +317,12 @@ constexpr Square longCastleRookDestination[2] = {
 uint64_t zobristPiecesSquaresColor[2][6][64];
 uint64_t zobristWhiteMoves;
 uint64_t zobristCastling[16];
+uint64_t zobristEnPassantFiles[8];
 uint64_t zobristDefaultGameHash;
 void genZobristKeys() {
+    // For debug
+    random.seed(0);
+
     for (int i = 0 ; i < 6 ; i++) {
         for (int j = 0 ; j < 64 ; j++) {
             zobristPiecesSquaresColor[BLACK][i][j] = random();
@@ -354,6 +334,10 @@ void genZobristKeys() {
 
     for (int i = 0 ; i < 16 ; i++) {
         zobristCastling[i] = random();
+    }
+
+    for (int i = 0 ; i < 8 ; i++) {
+        zobristEnPassantFiles[i] = random();
     }
 
     zobristDefaultGameHash = zobristWhiteMoves;

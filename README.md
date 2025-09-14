@@ -2,7 +2,7 @@
 
 ## 👋 Présentation du projet
 
-Il s'agit d'un **bot d'échecs** que j'ai programmé par moi même en utilisant des conseils et techniques figurant sur le site https://chessprogramming.org. 
+Il s'agit d'un **bot d'échecs** que j'ai programmé par moi même en utilisant des conseils et techniques figurant sur le site [chessprogramming](https://chessprogramming.org). 
 
 Il en est à la **troisième itération**, la première version étant en Python et la seconde aussi en C++.
 
@@ -12,37 +12,36 @@ Sachant qu'il s'agit de l'un de mes premiers projets (plus ou moins) aboutis en 
 
 Voici les techniques que j'ai (j'espère correctement) implémentées :
 
- - L'algorithme **MinMax** avec **Alpha-Beta Pruning**
+ - L'algorithme **MinMax** avec **Alpha-Beta Pruning** et la **Principal Variation Search**
 
  - Utilisation de **magic bitBoards** et **bitscans** pour la génération des coups
 
  - Une **Table de transposition** contenant les coups précédemment cherchés, stocké grace à un extrait du **Hash Zobrist** du noeud
 
- - Le tri des coups avec un **Move Ordering** sur l'évaluation des noeuds, mais aussi sur la **Table de transposition**
+ - Le tri des coups avec un **Move Ordering** avec l'évaluation des noeuds, mais aussi avec **Table de transposition**
 
- - Le **Null Move Pruning** permettant d'éviter de chercher les mauvais noeuds
+ - Le **Null Move Pruning** permettant d'éviter de chercher les noeuds "trop bons"
 
  - Les **Late Move Reductions** réduisant les recherches sur les coups les plus improbables
 
  - La **Quiescence Search** limitant l'effet d'horizon de la recherche
 
- - Une **Fonction d'évaluation** basée sur le **matériel**, la **position** des pièces, leur **mobilité** et **sécurité**, la **structure** des pions et d'autres éléments plus spécifiques à chaque pièces
+ - Une **Fonction d'évaluation** basée sur le **matériel**, la **position** des pièces (avec du **Tapered Eval**), leur **mobilité** et **sécurité**, la **structure** des pions et d'autres éléments plus spécifiques à chaque pièces
 
  - De **l'Approfondissement Itératif** prenant en compte les recherches précédentes pour les accélérer
 
 ### 🔧 Performances
 
-Sur mon ordinateur, avec un processeur assez ancien (`Intel Core i7-6700HQ 2.60GHz`), la recherche prend **1s**-**10s** avec une **profondeur maximale** de **8** ou (rarement) **9 plis**, dépendant de la complexité de la position. 
+Sur mon ordinateur, avec un processeur assez ancien (`Intel Core i7-6700HQ 2.60GHz`), la recherche prend **2s**-**10s** avec une **profondeur maximale** de **8**, **9** voire **10 plis**, dépendant de la complexité de la position. 
 
 Quant au **niveau** atteint par ce bot, il pourrait se situer entre **2000** et **2200 elo**, en se basant sur les bots chess.com qu'il peut battre, mais je ne l'ai pas encore rigoureusement testé.
 
 ### 📈 Améliorations possibles
 
- - Pour l'instant ce bot ne sait pas encore faire la prise **en-passant**
  - Implémenter de nouvelles techniques comme l'**aspiration window**
  - Améliorer les **constantes** choisies pour l'**évaluation** car elles sont pour l'instant assez arbitraires
  - Pour ce faire, améliorer le code de test pour comparer différentes versions du bot
-- Utiliser des collisions constructives pour réduire la taille des tables d'attaques
+ - Utiliser des collisions constructives pour réduire la taille des tables d'attaques
  - Respecter les standards et utiliser les fichiers headers :,)
 
 ## 📥 Installation des librairies
@@ -77,6 +76,6 @@ Il s'agit d'un plateau de jeu sur lequel vous pouvez déplacer les pièces.
 - Dans le menu paramètres vous pouvez afficher/cacher le nombre de noeuds recherchés lors du dernier coup. (Ce menu est plutôt vide mais d'autres actions y seront ajoutées)
 
 - Pour changer autre chose il faut malheureusement **modifier le code**
-  - Pour changer la profondeur, modifiez `NORMAL_DEPTH` dans `botConstants.cpp`
-  - Pour changer le temps moyen donné au bot par coup, modifiez `TARGET_BOT_TIME` dans `botConstants.cpp`
+  - Pour changer la profondeur de base, modifiez `NORMAL_DEPTH` dans `botConstants.cpp`
+  - Pour changer le temps moyen donné au bot par coup, modifiez `TARGET_BOT_TIME` dans `botConstants.cpp`, et `MAX_BOT_TIME` pour le temps maximum
   - Pour assigner une couleur pour laquelle le bot jouera automatiquement, définissez `botPlaysBlack` ou `botPlaysBlack` à `true` dans `main.cpp`

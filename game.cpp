@@ -19,10 +19,12 @@ class Game {
     public:
         Board board;
         Shared * shared;
+        Bot * bot;
 
         Game() = delete;
-        Game(SDL_Renderer* renderer, Shared * shared) : renderer(renderer)  {
+        Game(SDL_Renderer* renderer, Shared * shared, Bot * bot) : renderer(renderer)  {
             this->shared = shared;
+            this->bot = bot;
 
             board = Board();
             
@@ -30,7 +32,7 @@ class Game {
             boardOutline1 = {boardRect.x - 8, boardRect.y - 8, boardRect.w + 16, boardRect.h + 16};
             boardOutline2 = {boardRect.x - 6, boardRect.y - 6, boardRect.w + 12, boardRect.h + 12};
 
-            evaluationBarRect = {boardRect.x - 50, boardRect.y, 20, boardRect.h};
+            evaluationBarRect = {boardRect.x - 60, boardRect.y, 30, boardRect.h};
             evaluationBarOutline = {evaluationBarRect.x - 2, evaluationBarRect.y - 2, evaluationBarRect.w + 4, evaluationBarRect.h + 4};
 
             cellRect = {0, 0, boardRect.w / ROW_COUNT, boardRect.w / ROW_COUNT};
@@ -135,7 +137,7 @@ class Game {
         }
 
         void drawMoves(int xMouse, int yMouse) {
-            for (const Move move : holdPieceMoves) {
+            for (const Move &move : holdPieceMoves) {
                 circleRect.x = squareX(move.endSquare) * cellRect.w + boardRect.x + (cellRect.w - circleRect.w)/2;
                 circleRect.y = squareY(move.endSquare) * cellRect.w + boardRect.y + (cellRect.w - circleRect.w)/2;
                 
@@ -204,7 +206,7 @@ class Game {
             int width = 6;
             int alpha = 200;
 
-            for (const Move &move : principalVariation) {
+            for (const Move &move : bot->principalVariation) {
                 BoardPos startPos = {(char) squareX(move.startSquare), (char) squareY(move.startSquare)};
                 BoardPos endPos = {(char) squareX(move.endSquare), (char) squareY(move.endSquare)};
 
@@ -213,7 +215,7 @@ class Game {
                 width -= 1;
                 alpha -= 20;
 
-                if (width <= 3) {
+                if (width <= 1) {
                     break;
                 }
             }
@@ -330,33 +332,70 @@ class Game {
         }
 
         void botPlays() {
+            if (board.state != NEUTRAL) {
+                printf("----- The game is over -----\n");
+                std::cout.flush();
+                return;
+            }
             shared->currentCursor = shared->CURSOR_WAIT_ARROW;
             shared->update();
 
             printf("----- Bot plays -----\n");
 
-            MoveResult bestResult = getBestMove(board);
+            MoveResult bestResult = bot->getBestMove(board);
 
             if (bestResult.move == NO_MOVE) {
-                printf("----- The game is over -----\n");
+                printf("----- NULL MOVE PLAYED -----\n");
+                std::cout.flush();
                 return;
             }
             
             playMove(bestResult.move);
 
-            botEvaluation = bestResult.score;
+            botEvaluation = ((float) bestResult.score) / 100.0f;
 
             printf("| Board Evaluation: %f\n", botEvaluation);
 
             std::string text = "Noeuds : ";
-            text += std::to_string(nodeCount);
+            text += std::to_string(bot->nodeCount);
             shared->elements->counterText.setText(text.c_str());
+
+            float roundedEval = std::round(botEvaluation * 10.0f) / 10.0f;
+
+
+            if (roundedEval == 0.0f) {
+                shared->elements->evaluationText.setText("0.0");
+            } else if (bestResult.score > CHECKMATE_BASE_SCORE-100 || bestResult.score < -CHECKMATE_BASE_SCORE+100) {
+                std::string evalText = "M ";
+                evalText += std::to_string(bot->principalVariation.size());
+                shared->elements->evaluationText.setText(evalText.c_str());
+            } else {
+                std::string evalText = std::to_string(roundedEval);
+                // Removes traling zeros
+                evalText.erase(evalText.find_last_not_of('0') + 1, std::string::npos);
+                evalText.erase(evalText.find_last_not_of('.') + 1, std::string::npos);
+                shared->elements->evaluationText.setText(evalText.c_str());
+            }
 
             // FOR DEBUG
             printf("| Principal variation:\n");
-            for (Move move : principalVariation) {
+            for (const Move &move : bot->principalVariation) {
                 printMove(move);
             }
+
+            if (board.state == WHITE_WON) {
+                printf("| White Won !\n");
+            } else if (board.state == BLACK_WON) {
+                printf("| Black Won !\n");
+            } else if (board.state == DRAW) {
+                printf("| It is a draw\n");
+            }
+
+            // FOR DEBUG
+            bot->printTTInfos();
+            std::cout.flush();
+
+            updateZobristHashText();
         }
 
         void playMove(const Move &move) {
@@ -367,7 +406,16 @@ class Game {
 
             moveHistory.push_back(move);
             unmakeInfos.push_back(board.playMove(move));
-            onMovePlayed(board);
+            bot->onMovePlayed(board);
+
+            updateZobristHashText();
+
+            /*if (board.whiteTurn) {
+                printf("STATIC ANALYSIS : %d\n", bot->evaluatePosition(board));
+            } else {
+                printf("STATIC ANALYSIS : %d\n", -bot->evaluatePosition(board));
+            }
+            std::cout.flush();*/
         }
 
         void undoMove() {
@@ -388,7 +436,18 @@ class Game {
             moveHistory.pop_back();
             unmakeInfos.pop_back();
 
-            onMoveUndone(board);
+            bot->onMoveUndone(board);
+
+            updateZobristHashText();
+        }
+
+        void onElementsLoaded() {
+            shared->elements->evaluationText.setPos({
+                evaluationBarRect.x + evaluationBarRect.w/2, 
+                evaluationBarRect.y + evaluationBarRect.h - 20
+            });
+
+            updateZobristHashText();
         }
     
     protected:
@@ -450,7 +509,7 @@ class Game {
             }};
         }
 
-        void drawPiece(const Piece piece) {
+        void drawPiece(const Piece &piece) {
             if (piece.type != EMPTY) {
                 if (piece.isWhite) {
                     SDL_RenderCopy(renderer, whiteTextures[piece.type], NULL, &cellRect);
@@ -460,7 +519,7 @@ class Game {
             }
         }
 
-        void drawPromotionPiece(const Piece piece, const int xMouse, const int yMouse) {
+        void drawPromotionPiece(const Piece &piece, const int xMouse, const int yMouse) {
             if (piece.type != EMPTY) {
                 SDL_Point point {xMouse, yMouse};
                 if ( SDL_PointInRect(&point, &promotionRect) ) {
@@ -522,6 +581,11 @@ class Game {
             }
             captureCircleTexture = loadTexture(captureCirceFile, circleRect.w, circleRect.w);
             moveCircleTexture = loadTexture(moveCircleFile, circleRect.w, circleRect.w);
+        }
+
+        void updateZobristHashText() {
+            std::string text = std::format("Zobrist Hash : ({:x})", board.zobristHash);
+            shared->elements->zobristHashText.setText(text.c_str());
         }
 };
 

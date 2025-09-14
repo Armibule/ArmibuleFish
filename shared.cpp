@@ -26,12 +26,14 @@ class Shared {
         Game * game;
         Elements * elements;
 
+        TTF_Font * verySmallFont;
         TTF_Font * smallFont;
         TTF_Font * mediumFont;
         TTF_Font * bigFont;
 
         Shared() {
             #if defined(_WIN32) || defined(_WIN64)
+                verySmallFont = TTF_OpenFont("C:\\Windows\\Fonts\\micross.ttf", 16);
                 smallFont = TTF_OpenFont("C:\\Windows\\Fonts\\micross.ttf", 26);
                 mediumFont = TTF_OpenFont("C:\\Windows\\Fonts\\micross.ttf", 36);
                 bigFont = TTF_OpenFont("C:\\Windows\\Fonts\\micross.ttf", 66);
