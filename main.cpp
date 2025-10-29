@@ -279,6 +279,10 @@ int main(int argc, char* argv[]) {
                     case SDLK_p:
                         shared->showPV = !shared->showPV;
                         break;
+                    case SDLK_s:
+                        // Toggles piece square table view on piece hover
+                        game.pieceSquareTableViewMode = !game.pieceSquareTableViewMode;
+                        break;
                     }
             }
         }

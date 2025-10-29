@@ -21,6 +21,8 @@ class Game {
         Shared * shared;
         Bot * bot;
 
+        bool pieceSquareTableViewMode = false;
+
         Game() = delete;
         Game(SDL_Renderer* renderer, Shared * shared, Bot * bot) : renderer(renderer)  {
             this->shared = shared;
@@ -49,7 +51,17 @@ class Game {
             int xMouse, yMouse;
             SDL_GetMouseState( &xMouse, &yMouse );
 
-            drawBoard(xMouse, yMouse);
+            
+            if (pieceSquareTableViewMode) {
+                Piece hoveredPiece = board.getAt(posToBoard(xMouse, yMouse));
+                if (hoveredPiece.type == EMPTY) {
+                    drawBoard(xMouse, yMouse);
+                } else {
+                    drawPieceSquareTable(hoveredPiece);
+                }
+            } else {
+                drawBoard(xMouse, yMouse);
+            }
             
             if ( holdPieceMoves.size() > 0 ) {
                 drawMoves(xMouse, yMouse);
@@ -64,6 +76,52 @@ class Game {
 
             if (holdPieceMoves.size() > 0) {
                 shared->currentCursor = shared->CURSOR_HAND;
+            }
+        }
+
+        void drawPieceSquareTable(const Piece &piece) {
+            SDL_SetRenderDrawColor( renderer, 255, 206, 158, 255 );
+            SDL_RenderFillRect( renderer, &boardOutline1 );
+            
+            if (board.whiteTurn) {
+                SDL_SetRenderDrawColor( renderer, 255, 255, 255, 255 );
+                SDL_RenderFillRect( renderer, &boardOutline2 );
+            } else {
+                SDL_SetRenderDrawColor( renderer, 0, 0, 0, 255 );
+                SDL_RenderFillRect( renderer, &boardOutline2 );
+            }
+
+            for (char y = 0 ; y < ROW_COUNT ; y++) {
+                for (char x = 0 ; x < ROW_COUNT ; x++) {
+                    moveRectToBoardPos(cellRect, x, y);
+
+                    int scoreOpening = pieceValuesPosOpeningColor[piece.isWhite][piece.type][makeSquare(x, y)];
+                    int scoreEndgame = pieceValuesPosEndgameColor[piece.isWhite][piece.type][makeSquare(x, y)];
+                    int score = lerpScore(scoreOpening, scoreEndgame, board.phase);
+                    int value = score;
+                    if (piece.isWhite) {
+                        value -= piecesStandardValue[piece.type];
+                    } else {
+                        value += piecesStandardValue[piece.type];
+                    }
+
+                    SDL_SetRenderDrawColor( renderer, 128 + value/2, 128 + value/2, 128 + value/2, 255 );
+                    
+                    SDL_RenderFillRect( renderer, &cellRect );
+                }
+            }
+
+            // Draw pieces
+            for (char y = 0 ; y < ROW_COUNT ; y++) {
+                for (char x = 0 ; x < ROW_COUNT ; x++) {
+                    moveRectToBoardPos(cellRect, x, y);
+
+                    if ( !isPromotionAsked || (askedPromotionStartPos.x != x || askedPromotionStartPos.y != y) ) {
+                        if ( holdPieceMoves.size() == 0 || x != holdPiecePos.x || y != holdPiecePos.y ) {
+                            drawPiece( board.getAt(x, y) );
+                        }
+                    }
+                }
             }
         }
 

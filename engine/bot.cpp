@@ -53,6 +53,10 @@ bool moveResultCompareDecreasing(MoveResult &a, MoveResult &b) {
     return a.score > b.score;
 }
 
+inline int lerpScore(int openingScore, int endgameScore, GamePhase phase) {
+    return (openingScore * (256 - phase) + endgameScore * phase) / 256;
+}
+
 
 // Class used for encapsulation
 // Should be instantiated with new, otherwise it blows up the stack
@@ -300,7 +304,7 @@ int evaluatePosition(Board &board) {
 
     // Incrementally updated piece-square tables
     // Tapered eval : lerps the values between opening and endgame
-    score += (board.pieceSquareScoreOpening * (256 - board.phase) + board.pieceSquareScoreOpening * board.phase) / 256;
+    score += lerpScore(board.pieceSquareScoreOpening, board.pieceSquareScoreEndgame, board.phase);
 
     score += mobilityPoints * mobilityValue;
     score += pawnProtectsBonus * pawnProtecting;
@@ -502,17 +506,13 @@ int quiescenceSearch(Board& board, int alpha, int beta, int depth=MAX_QUIESCENCE
         Move move = baseMoveResult.move;
 
         // TODO : DELTA PRUNING TEST (does not improve)
-        /*float takenPieceValue = piecesStandardValue[board.getAt(move.endSquare).type];
-
-        if (whiteTurn) {
-            if (bestScore + takenPieceValue + DELTA_PRUNING_MARGIN < alpha) {
-                continue;
-            }
-        } else {
-            if (bestScore - takenPieceValue - DELTA_PRUNING_MARGIN > beta) {
+        /*if (TEST_VAR) {
+            int takenPieceValue = piecesStandardValue[board.getAt(move.endSquare).type];
+            if (bestScore + takenPieceValue + DELTA_PRUNING_MARGIN + 500 < alpha) {
                 continue;
             }
         }*/
+        
 
         #if MESURE_LEVEL >= LOW_MESURE
         nodeCount += 1;
@@ -577,6 +577,13 @@ int PVSearch(Board &board, int depth=NORMAL_DEPTH, int alpha=-INFINITE_SCORE, in
     #if MESURE_LEVEL >= LOW_MESURE
     nodeCount += 1;
     #endif
+
+    if (board.state != NEUTRAL) {
+        int score = evaluatePosition(board);
+        // This is a leaf node, end of the game
+        updateTT(board, depth, bestMove, score, ALL_NODE);
+        return score;
+    }
 
     // Check if the position is present in the transposition table
     Move refutationMove = NO_MOVE;
@@ -734,25 +741,19 @@ int PVSearch(Board &board, int depth=NORMAL_DEPTH, int alpha=-INFINITE_SCORE, in
     int score;
 
     if (depth == 1) {
+        bool futilityPruningEnabled = !board.isInCheck(whiteTurn);
         // Frontier node
         for (const Move &move : moves) {
             UnmakeMoveInfo info = board.playMove(move);
 
-            // Futility pruning BROKEN
-            /*if (TEST_VAR) {
-                if (!board.isCapture(move) && !board.isInCheck(!whiteTurn)) {
-                    if (baseScore + FUTILITY_MARGIN < alpha) {
-                        board.undoMove(move, info);
-                        printf("PRUNE %d, %d\n", alpha, baseScore);
-                        continue;
-                    }
-                    if (baseScore - FUTILITY_MARGIN > beta) {
-                        board.undoMove(move, info);
-                        printf("PRUNE %d, %d\n", beta, baseScore);
-                        continue;
-                    }
-                }
-            }*/
+            // Futility pruning, to improve
+            if (futilityPruningEnabled && 
+                !board.isCapture(move) && 
+                (baseScore + FUTILITY_MARGIN < alpha) && 
+                !board.isInCheck(!whiteTurn)) {
+                board.undoMove(move, info);
+                continue;
+            }
 
             score = -quiescenceSearch(board, -beta, -alpha);
             board.undoMove(move, info);
@@ -940,7 +941,7 @@ MoveResult getBestMove(Board &board, bool verbose=true, bool showBoard=false) {
     MoveResult bestResult = {};
     MoveResult lastBestResult = {};
 
-    while (elapsedTime*3.0f < TARGET_BOT_TIME && !isSearchCanceled) {
+    while (elapsedTime*3.0f < DEFAULT_BOT_TIME && !isSearchCanceled) {
         if (verbose) {
             printf("- Depth = %d\n", currentDepth);
         }

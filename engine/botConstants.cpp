@@ -11,20 +11,29 @@
 #define MESURE_LEVEL ALL_MESURE // ALL_MESURE
 
 
-// Values are in centipawns
+//    Time controls
+const bool IS_GAME_TIMED = false;        // NOT IMPLEMENTED
+// if IS_GAME_TIMED is true, target bot is ignored. Else, it is the only used
+const float TOTAL_GAME_TIME = 60000.0f;        // NOT IMPLEMENTED
+const float TIME_INCREMENT = 5000.0f;        // NOT IMPLEMENTED
 
-// Time that the bot can take if he wants more depth, in milliseconds
-const float TARGET_BOT_TIME = /*100.0f;*/ 5000.0f /*15000.0f;*/ /*0.0001f*/;
+// Time that the bot can take, in milliseconds
+const float DEFAULT_BOT_TIME = /*100.0f;*/ 5000.0f /*0.0001f*/;
 // Time at which the search is cancelled it is too long, in milliseconds
 const float MAX_BOT_TIME = 20000.0f;    // 20000.0f;
+
+//    General settings
 
 const int TT_BITS = 22; // 20;
 const uint64_t TTSize = 1ULL << TT_BITS;
 const uint64_t TTMask = TTSize - 1ULL;
 
-const int NORMAL_DEPTH = 8; // 8
+const int NORMAL_DEPTH = 8; // 8 (minimal depth searched)
 const int MAX_QUIESCENCE_DEPTH = 4; //4;   // Limits Quiescence Search - 
 const int MAX_SEARCH_EXTENSION = 1;
+
+//    Evaluation values
+// Values are in centipawns
 
 // Should have some margin from INT32_MIN to prevent underflows
 const int INFINITE_SCORE =       999999'99;
@@ -102,7 +111,7 @@ const int NMPRejectMargin = 50;      // If the position is farther from the prun
 const int maxLMRDepth = NORMAL_DEPTH - 2;
 const int LMR_MOVE_NUMBER = 4;  // Number of moves from which LMR is applied
 
-// const float DELTA_PRUNING_MARGIN = 0.2f; UNUSED
+const int DELTA_PRUNING_MARGIN = 200;
 
 // Pawn structure - Penalty of having too much pawns aligned
 const int alignedPawnPenalties[8] = {
@@ -282,14 +291,14 @@ int pieceValuesPosEndgame[6][8][8] = {
         {495, 510, 510, 510, 510, 510, 510, 495},
         {490, 510, 515, 518, 518, 515, 510, 490}
     }, {  // QUEEN
-        {890, 895, 895, 895, 895, 895, 895, 890},
-        {895, 920, 920, 920, 920, 920, 920, 895},
-        {895, 920, 925, 925, 925, 925, 920, 895},
-        {895, 920, 925, 928, 928, 925, 920, 895},
-        {895, 920, 925, 928, 928, 925, 920, 895},
-        {895, 920, 925, 925, 925, 925, 920, 895},
-        {895, 920, 920, 920, 920, 920, 920, 895},
-        {890, 895, 895, 895, 895, 895, 895, 890}
+        {900, 905, 905, 905, 905, 905, 905, 900},
+        {905, 930, 930, 930, 930, 930, 930, 905},
+        {905, 930, 935, 935, 935, 935, 930, 905},
+        {905, 930, 935, 938, 938, 935, 930, 905},
+        {905, 930, 935, 938, 938, 935, 930, 905},
+        {905, 930, 935, 935, 935, 935, 930, 905},
+        {905, 930, 930, 930, 930, 930, 930, 905},
+        {900, 905, 905, 905, 905, 905, 905, 900}
     }, {  // KING
         {-10, -05, 000, 000, 000, 000, -05, -10},
         {-05, 015, 030, 035, 035, 030, 015, -05},

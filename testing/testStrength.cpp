@@ -56,21 +56,28 @@ void doTests(bool isAWhite, Board * boards, int startIndex, int boardCount) {
             MoveResult bestResult;
             if (whiteTurn) {
                 bestResult = whiteBot->getBestMove(board, false);
-                if (isAWhite) {
-                    ADepthSum += whiteBot->currentDepth;
-                    AMoves += 1;
-                } else {
-                    BDepthSum += whiteBot->currentDepth;
-                    BMoves += 1;
+
+                // Avoid excessive values
+                if (whiteBot->currentDepth < 15) {
+                    if (isAWhite) {
+                        ADepthSum += whiteBot->currentDepth;
+                        AMoves += 1;
+                    } else {
+                        BDepthSum += whiteBot->currentDepth;
+                        BMoves += 1;
+                    }
                 }
             } else {
                 bestResult = blackBot->getBestMove(board, false);
-                if (isAWhite) {
-                    BDepthSum += blackBot->currentDepth;
-                    BMoves += 1;
-                } else {
-                    ADepthSum += blackBot->currentDepth;
-                    AMoves += 1;
+
+                if (blackBot->currentDepth < 15) {
+                    if (isAWhite) {
+                        BDepthSum += blackBot->currentDepth;
+                        BMoves += 1;
+                    } else {
+                        ADepthSum += blackBot->currentDepth;
+                        AMoves += 1;
+                    }
                 }
             }
 
