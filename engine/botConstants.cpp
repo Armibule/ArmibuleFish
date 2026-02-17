@@ -2,43 +2,83 @@
 #define BOT_CONSTANTS
 
 #include "gameConstants.cpp"
+#include "NNUE3.cpp"
 
 
-// Less mesures = better performances
+// Less mesures = better performances !
 #define NO_MESURE 0
 #define LOW_MESURE 1
 #define ALL_MESURE 2
-#define MESURE_LEVEL ALL_MESURE // ALL_MESURE
+#define MESURE_LEVEL NO_MESURE // NO_MESURE // ALL_MESURE
 
 
 //    Time controls
-const bool IS_GAME_TIMED = false;        // NOT IMPLEMENTED
-// if IS_GAME_TIMED is true, target bot is ignored. Else, it is the only used
-const float TOTAL_GAME_TIME = 60000.0f;        // NOT IMPLEMENTED
-const float TIME_INCREMENT = 5000.0f;        // NOT IMPLEMENTED
 
 // Time that the bot can take, in milliseconds
-const float DEFAULT_BOT_TIME = /*100.0f;*/ 5000.0f /*0.0001f*/;
+float DEFAULT_BOT_TIME = /*100.0f;*/ 8000.0f; /*16000.0f;*/ /*100000.0f;*/ /*5000.0f;*/ // 0.0001f;
 // Time at which the search is cancelled it is too long, in milliseconds
-const float MAX_BOT_TIME = 20000.0f;    // 20000.0f;
+float MAX_BOT_TIME = 20000.0f; //50000.0f; //300000.0f;
+
 
 //    General settings
 
-const int TT_BITS = 22; // 20;
+const int TT_BITS = 24; // 20;
 const uint64_t TTSize = 1ULL << TT_BITS;
 const uint64_t TTMask = TTSize - 1ULL;
 
-const int NORMAL_DEPTH = 8; // 8 (minimal depth searched)
-const int MAX_QUIESCENCE_DEPTH = 4; //4;   // Limits Quiescence Search - 
-const int MAX_SEARCH_EXTENSION = 1;
+const int NORMAL_DEPTH = 7; // 7; // 8; // 7;      // Minimal depth searched
+const int MAX_QUIESCENCE_DEPTH = 4; // 4;     // Limits Quiescence Search - 
+const int MAX_SEARCH_EXTENSION = 1; // 1;
 
-//    Evaluation values
-// Values are in centipawns
+
+//    NNUE settings
+// const char * NNUE_FILE = "networks/network_128_30bucket_14.4M_testStd0.10098.nnue3";
+const char * NNUE_FILE = "networks/network_128_30bucket_13.4M_testStd0.10029.nnue3";
+NNUE * nnue = NNUE::fromFile(NNUE_FILE);
+
+
+// Pruning constants
+
+const int FUTILITY_MARGIN = 300;
+
+// Reduction of depth during a null move pruning, includes normal depth decrement
+const int NullMovePruningReduction = 4;
+const int NMPRejectMargin = 30;      // If the position is farther from the pruning bounds, avoid NMP
+
+// Starts late Move Reduction when depth is smaller or equal than currentDepth minus this
+// const int minLMRDraft = 0; // 2;
+// Disables LMR under this depth
+// const int minLMRDepth = 3; // Should be > 1
+// TODO : IN TEST
+// Different levels can't have the same value !
+const int LMR1_MOVE_NUMBER = 1;  // Number of moves from which LMR1 is applied
+const int LMR2_MOVE_NUMBER = 2;  // Number of moves from which LMR2 is applied
+const int LMR3_MOVE_NUMBER = 4;  // Number of moves from which LMR2 is applied
+const int LMR4_MOVE_NUMBER = 8;  // Number of moves from which LMR2 is applied
+// const int LMR5_MOVE_NUMBER = 16;  // Number of moves from which LMR2 is applied
+
+
+// const int DELTA_PRUNING_MARGIN = 200;
+
 
 // Should have some margin from INT32_MIN to prevent underflows
 const int INFINITE_SCORE =       999999'99;
 const int CHECKMATE_BASE_SCORE = 9999'99;
 
+
+// Move History Heuristic (work in progress)
+const int moveHistoryDecayFactor = 180;   // Proportion of value kept between iterations, between 0 and 256
+const int moveHistoryValueFactor = 1;   // Increases the history bonus by depth*factor
+const int moveHistoryMaxValue = 200;
+const int moveHistoryMinValue = -200;
+
+
+// const int checkValue = 100;
+
+
+//    Evaluation values - Values are in centipawns (DEPRECATED)
+
+/*
 const int checkValue = 60;
 const int mobilityValue = 5;
 
@@ -98,21 +138,6 @@ const int kingOpenFilesMalus = 30;
 // Malus for each square of virtual mobility for the king when replaced by a queen
 const int kingVirtualMobilityMalus = 5;
 
-const int FUTILITY_MARGIN = 300;
-
-// DEPRECATED, NOW BASED ON CAPTURES - Lower = less strict = more search
-// const float quiescenceThreshold = 0.65f;*/
-
-// Reduction of depth during a null move pruning, includes normal depth decrement
-const int NullMovePruningReduction = 3;
-const int NMPRejectMargin = 50;      // If the position is farther from the pruning bounds, avoid NMP
-
-// Starts late Move Reduction when depth is smaller than this value
-const int maxLMRDepth = NORMAL_DEPTH - 2;
-const int LMR_MOVE_NUMBER = 4;  // Number of moves from which LMR is applied
-
-const int DELTA_PRUNING_MARGIN = 200;
-
 // Pawn structure - Penalty of having too much pawns aligned
 const int alignedPawnPenalties[8] = {
     000,
@@ -123,15 +148,6 @@ const int alignedPawnPenalties[8] = {
     160,
     190,
     220,
-};
-
-const int piecesStandardValue[6] = {
-    100,
-    300,
-    300,
-    500,
-    900,
-    000
 };
 
 // From white's perspective
@@ -192,66 +208,6 @@ int pieceValuesPosOpening[6][8][8] = {
         { 40,  70,  40,  15,  15,  40,  70,  40}
     }
 };
-
-/*
-NOT USED ANYMORE
-int pieceValuesPosMiddlegame[6][8][8] = {
-    {     // PAWN
-        {200, 200, 200, 200, 200, 200, 200, 200},
-        {160, 160, 160, 165, 165, 160, 160, 160},
-        {140, 140, 140, 150, 150, 140, 140, 140},
-        {115, 120, 125, 145, 145, 125, 120, 115},
-        {110, 110, 120, 140, 140, 120, 110, 110},
-        {108, 105, 105, 110, 110, 105, 105, 108},
-        {115, 115, 110, 100, 100, 110, 115, 115},
-        {000, 000, 000, 000, 000, 000, 000, 000}
-    }, {  // KNIGHT
-        {270, 280, 290, 300, 300, 290, 280, 270},
-        {280, 305, 305, 305, 305, 305, 305, 280},
-        {285, 310, 320, 325, 325, 320, 310, 285},
-        {285, 320, 330, 330, 330, 330, 320, 285},
-        {285, 320, 330, 325, 325, 330, 320, 285},
-        {285, 300, 320, 310, 310, 320, 300, 285},
-        {280, 295, 300, 300, 300, 300, 295, 280},
-        {270, 280, 290, 300, 300, 290, 280, 270}
-    }, {  // BISHOP
-        {280, 290, 290, 290, 290, 290, 290, 280},
-        {290, 300, 300, 300, 300, 300, 300, 290},
-        {290, 300, 300, 300, 300, 300, 300, 290},
-        {290, 310, 305, 315, 315, 305, 310, 290},
-        {290, 310, 310, 315, 315, 310, 310, 290},
-        {290, 310, 305, 310, 310, 305, 310, 290},
-        {290, 315, 300, 300, 300, 300, 315, 290},
-        {280, 290, 290, 290, 290, 290, 290, 280}
-    }, {  // ROOK
-        {500, 505, 510, 510, 510, 510, 505, 500},
-        {505, 510, 515, 520, 520, 515, 510, 505},
-        {500, 505, 510, 510, 510, 510, 505, 500},
-        {495, 500, 500, 505, 505, 500, 500, 495},
-        {495, 500, 500, 500, 500, 500, 500, 495},
-        {495, 500, 505, 510, 510, 505, 500, 495},
-        {500, 510, 510, 515, 515, 510, 510, 500},
-        {510, 505, 515, 520, 520, 515, 505, 510}
-    }, {  // QUEEN
-        {890, 900, 900, 900, 900, 900, 900, 890},
-        {895, 910, 910, 905, 905, 910, 910, 895},
-        {895, 910, 910, 908, 908, 910, 910, 895},
-        {895, 910, 910, 910, 910, 910, 910, 895},
-        {895, 910, 910, 910, 910, 910, 910, 895},
-        {895, 910, 910, 908, 908, 910, 910, 895},
-        {895, 910, 910, 905, 905, 910, 910, 895},
-        {890, 895, 900, 900, 900, 900, 895, 890}
-    }, {  // KING
-        {-40, -40, -40, -40, -40, -40, -40, -40},
-        {-35, -35, -35, -35, -35, -35, -35, -35},
-        {-30, -30, -30, -30, -30, -30, -30, -30},
-        {-25, -25, -25, -25, -25, -25, -25, -25},
-        {-20, -20, -20, -20, -20, -20, -20, -20},
-        {-15, -15, -15, -15, -15, -15, -15, -15},
-        { 00,  00,  00,  00,  00,  00,  00,  00},
-        { 40,  70,  40,  10,  10,  40,  70,  40}
-    }
-};*/
 
 int pieceValuesPosEndgame[6][8][8] = {
     {     // PAWN
@@ -329,10 +285,10 @@ uint64_t passedPawnMasksBlack[8][8];
 // From BLACK, WHITE perspective
 int pieceValuesPosOpeningColor[2][PIECE_TYPE_COUNT][64];
 // int pieceValuesPosMiddlegameColor[2][PIECE_TYPE_COUNT][64];
-int pieceValuesPosEndgameColor[2][PIECE_TYPE_COUNT][64];
+int pieceValuesPosEndgameColor[2][PIECE_TYPE_COUNT][64];*/
 
 constexpr void initBot() {
-    for (int typeIndex = 0 ; typeIndex < PIECE_TYPE_COUNT ; typeIndex++) {
+    /*for (int typeIndex = 0 ; typeIndex < PIECE_TYPE_COUNT ; typeIndex++) {
         for (int y = 0 ; y < 8 ; y++) {
             for (int x = 0 ; x < 8 ; x++) {
                 int square = x + 8u*y;
@@ -363,16 +319,25 @@ constexpr void initBot() {
             passedPawnMasksWhite[y][x] = columns << (8 * (8 - y));
             passedPawnMasksBlack[y][x] = columns >> (8 * (y + 1));
         }
-    }
+    }*/
 }
 
 // Gives the base value of pieces using piece square tables 
-inline int piecesValue(PieceType pieceType, bool isWhite, uint64_t occupency, int (*pieceValuesPosColor)[PIECE_TYPE_COUNT][64]) {
+/*inline int piecesValue(PieceType pieceType, bool isWhite, uint64_t occupency, int (*pieceValuesPosColor)[PIECE_TYPE_COUNT][64]) {
     int sum = 0;
     while (occupency) {
         sum += pieceValuesPosColor[isWhite][pieceType][popLastSquare(occupency)];
     }
     return sum;
-}
+}*/
+
+const int piecesStandardValue[6] = {
+    100,
+    300,
+    300,
+    500,
+    900,
+    000
+};
 
 #endif

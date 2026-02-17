@@ -25,15 +25,15 @@ enum GameState : int {
     DRAW
 };
 // Number between 0 and 256, represents the progress from opening to endgame
-typedef int GamePhase;
+/*typedef int GamePhase;
 const GamePhase INITIAL_GAME_PHASE = 0;
-const GamePhase ENDGAME_THRESHOLD = 180;
+const GamePhase ENDGAME_THRESHOLD = 180;*/
 
 enum MoveType {
     NORMAL_MOVE,
-    SHORT_ROQUE,     // The piece to move should be a king
-    LONG_ROQUE,     // The piece to move should be a king
-    EN_PASSANT      // Not implemented yet
+    SHORT_CASTLE,     // The piece to move should be a king
+    LONG_CASTLE,     // The piece to move should be a king
+    EN_PASSANT
 };
 
 struct Piece {
@@ -357,6 +357,39 @@ const std::string piecesEmojiColor[2][PIECE_TYPE_COUNT] = {
     {"♟", "♝", "♞", "♜", "♛", "♚"}
 };
 
+
+// FEN Helper functions
+
+inline Piece fenCharToPiece(char c) {
+    switch (c) {
+        case 'P': return {PAWN, WHITE};
+        case 'B': return {BISHOP, WHITE};
+        case 'N': return {KNIGHT, WHITE};
+        case 'R': return {ROOK, WHITE};
+        case 'Q': return {QUEEN, WHITE};
+        case 'K': return {KING, WHITE};
+
+        case 'p': return {PAWN, BLACK};
+        case 'b': return {BISHOP, BLACK};
+        case 'n': return {KNIGHT, BLACK};
+        case 'r': return {ROOK, BLACK};
+        case 'q': return {QUEEN, BLACK};
+        case 'k': return {KING, BLACK};
+    }
+    return EMPTY_PIECE;
+}
+inline Square fenCoordinateToSquare(char letter, char digit) {
+    return makeSquare(letter - 'a', 8 - (digit - '0'));
+}
+struct FenCoordinateChars {
+    char letter;
+    char digit;
+};
+inline FenCoordinateChars squareToFenCoordinate(Square square) {
+    return {'a' + squareX(square), '8' - squareY(square)};
+}
+
+
 // Used for debug
 inline uint64_t buildBitboard(uint64_t a, uint64_t b, uint64_t c, uint64_t d, uint64_t e, uint64_t f, uint64_t g, uint64_t h) {
     return (a << 7*8) |
@@ -368,5 +401,6 @@ inline uint64_t buildBitboard(uint64_t a, uint64_t b, uint64_t c, uint64_t d, ui
            (g << 1*8) |
            (h << 0*8);
 }
+
 
 #endif

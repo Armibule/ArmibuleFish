@@ -2,47 +2,53 @@
 
 ## 👋 Présentation du projet
 
-Il s'agit d'un **bot d'échecs** que j'ai programmé par moi même en utilisant des conseils et techniques figurant sur le site [chessprogramming](https://chessprogramming.org). 
+Il s'agit d'un **bot d'échecs** que j'ai programmé par moi même en utilisant des conseils et techniques figurant sur le site [chessprogramming](https://chessprogramming.org) et le server discord **Engine Programming**
 
 Il en est à la **troisième itération**, la première version étant en Python et la seconde aussi en C++.
 
-Sachant qu'il s'agit de l'un de mes premiers projets (plus ou moins) aboutis en C++, certaines bonnes pratiques ne sont probablement pas respectées (comme l'absences de fichiers headers par exemple).
+Sachant qu'il s'agit de l'un de mes premiers projets (plus ou moins) aboutis en C++, certaines bonnes pratiques ne sont pas respectées (comme l'absences de fichiers headers par exemple).
+
 
 ### 🧩 Features implémentées
 
 Voici les techniques que j'ai (j'espère correctement) implémentées :
 
- - L'algorithme **MinMax** avec **Alpha-Beta Pruning** et la **Principal Variation Search**
+ - L'algorithme **MinMax** avec **Alpha-Beta Pruning** + **Principal Variation Search**
 
  - Utilisation de **magic bitBoards** et **bitscans** pour la génération des coups
 
  - Une **Table de transposition** contenant les coups précédemment cherchés, stocké grace à un extrait du **Hash Zobrist** du noeud
 
- - Le tri des coups avec un **Move Ordering** avec l'évaluation des noeuds, mais aussi avec **Table de transposition**
+ - Le tri des coups avec l'**évaluation statique** des noeuds (sera changé), mais aussi avec **Table de transposition**
 
  - Le **Null Move Pruning** permettant d'éviter de chercher les noeuds "trop bons"
 
- - Les **Late Move Reductions** réduisant les recherches sur les coups les plus improbables
+ - Les **Late Move Reductions** réduisant les recherches sur les coups les plus mauvais
 
  - La **Quiescence Search** limitant l'effet d'horizon de la recherche
 
- - Une **Fonction d'évaluation** basée sur le **matériel**, la **position** des pièces (avec du **Tapered Eval**), leur **mobilité** et **sécurité**, la **structure** des pions et d'autres éléments plus spécifiques à chaque pièces
+ - Une **Fonction d'évaluation statique** basée sur sur un réseau neuronal / **NNUE** entrainée avec mon trainer sur une base de données lichess
+   - Architecture : Input **2×786** -> **128** -> **30** Output buckets 
 
  - De **l'Approfondissement Itératif** prenant en compte les recherches précédentes pour les accélérer
 
+ - Un mode **UCI** ***bancal*** sans option de pondération (toujours activée), ni te taille de hash
+
 ### 🔧 Performances
 
-Sur mon ordinateur, avec un processeur assez ancien (`Intel Core i7-6700HQ 2.60GHz`), la recherche prend **2s**-**10s** avec une **profondeur maximale** de **8**, **9** voire **10 plis**, dépendant de la complexité de la position. 
+Sur mon ordinateur, avec un processeur assez ancien (`Intel Core i7-6700HQ 2.60GHz`), la recherche prend **6s**-**14s** avec une **profondeur maximale** entre **13** et **20** plis, dépendant de la complexité de la position. 
 
-Quant au **niveau** atteint par ce bot, il pourrait se situer entre **2000** et **2200 elo**, en se basant sur les bots chess.com qu'il peut battre, mais je ne l'ai pas encore rigoureusement testé.
+Quant au **niveau** atteint par ce bot, il pourrait se situer entre **2300** et **2400 elo**, en se basant sur les bots chess.com qu'il peut battre, mais je ne l'ai pas encore rigoureusement testé.
 
 ### 📈 Améliorations possibles
 
  - Implémenter de nouvelles techniques comme l'**aspiration window**
- - Améliorer les **constantes** choisies pour l'**évaluation** car elles sont pour l'instant assez arbitraires
- - Pour ce faire, améliorer le code de test pour comparer différentes versions du bot
- - Utiliser des collisions constructives pour réduire la taille des tables d'attaques
- - Respecter les standards et utiliser les fichiers headers :,)
+ - Améliorer les **constantes** de recherche (LMR, NMP, ...) peut-être avec l'algorithme SPSA ?
+ - Utiliser des collisions constructives pour réduire la taille des tables d'attaques ?
+ - Améliorer le tri des coups avec l'algorithme **MVV-LVA**, un **historique des coups**, etc.
+ - Améliorer le réseau neuronal ?
+
+Objectif : battre le bot chess.com de Magnus Carlsen !
 
 ## 📥 Installation des librairies
 
@@ -59,13 +65,15 @@ Sur windows, ustilisez de préférence la toolchain **msys** avec **mingw64**.
 
 ## ⚙ Compilation
 
-Pour **compiler** le projet, après l'installation des librairies, utilisez les lignes de comandes situées dans les fichiers en `.bat`.
+Pour **compiler** le projet, après l'installation des librairies, choisissez des lignes de comandes situées dans les fichiers en `.sh`.
 
 Notez que pour l'instant, **seul Windows** est supporté.
 
 ## 🔑 Utilisation
 
-Il s'agit d'un plateau de jeu sur lequel vous pouvez déplacer les pièces.
+### Mode normal
+
+Il s'agit d'un plateau de jeu sur lequel vous pouvez déplacer les pièces et faire jouer le bot.
 
 - Pour faire **jouer le bot** d'un coup appuyez sur la touche `B`.
 
@@ -78,4 +86,9 @@ Il s'agit d'un plateau de jeu sur lequel vous pouvez déplacer les pièces.
 - Pour changer autre chose il faut malheureusement **modifier le code**
   - Pour changer la profondeur de base, modifiez `NORMAL_DEPTH` dans `botConstants.cpp`
   - Pour changer le temps moyen donné au bot par coup, modifiez `TARGET_BOT_TIME` dans `botConstants.cpp`, et `MAX_BOT_TIME` pour le temps maximum
-  - Pour assigner une couleur pour laquelle le bot jouera automatiquement, définissez `botPlaysBlack` ou `botPlaysBlack` à `true` dans `main.cpp`
+
+ - **Arguments de la ligne de commande**
+   - **--help** : Affiche les arguments disponibles
+   - **--white** : Le bot joue pour les blancs à chaque tour automatiquement
+   - **--black** : Le bot joue pour les noirs à chaque tour automatiquement
+   - **-fen "\<FEN string>"** : Charge une position d'après une notation FEN

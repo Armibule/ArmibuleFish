@@ -21,14 +21,16 @@ class Game {
         Shared * shared;
         Bot * bot;
 
-        bool pieceSquareTableViewMode = false;
+        std::vector<Move> predictedVariation = {};
+
+        // bool pieceSquareTableViewMode = false;
 
         Game() = delete;
-        Game(SDL_Renderer* renderer, Shared * shared, Bot * bot) : renderer(renderer)  {
+        Game(SDL_Renderer* renderer, Shared * shared, Bot * bot, Board &board) : renderer(renderer)  {
             this->shared = shared;
             this->bot = bot;
 
-            board = Board();
+            this->board = board;
             
             boardRect = {(int) (SCREEN_WIDTH - SCREEN_HEIGHT * 0.8)/2, (int) (SCREEN_HEIGHT * 0.1), (int) (SCREEN_HEIGHT * 0.8), (int) (SCREEN_HEIGHT * 0.8)};
             boardOutline1 = {boardRect.x - 8, boardRect.y - 8, boardRect.w + 16, boardRect.h + 16};
@@ -52,16 +54,16 @@ class Game {
             SDL_GetMouseState( &xMouse, &yMouse );
 
             
-            if (pieceSquareTableViewMode) {
+            /*if (pieceSquareTableViewMode) {
                 Piece hoveredPiece = board.getAt(posToBoard(xMouse, yMouse));
                 if (hoveredPiece.type == EMPTY) {
                     drawBoard(xMouse, yMouse);
                 } else {
                     drawPieceSquareTable(hoveredPiece);
                 }
-            } else {
+            } else {*/
                 drawBoard(xMouse, yMouse);
-            }
+            // }
             
             if ( holdPieceMoves.size() > 0 ) {
                 drawMoves(xMouse, yMouse);
@@ -79,7 +81,7 @@ class Game {
             }
         }
 
-        void drawPieceSquareTable(const Piece &piece) {
+        /*void drawPieceSquareTable(const Piece &piece) {
             SDL_SetRenderDrawColor( renderer, 255, 206, 158, 255 );
             SDL_RenderFillRect( renderer, &boardOutline1 );
             
@@ -123,7 +125,7 @@ class Game {
                     }
                 }
             }
-        }
+        }*/
 
         void drawBoard(int xMouse, int yMouse) {
             SDL_SetRenderDrawColor( renderer, 255, 206, 158, 255 );
@@ -264,7 +266,7 @@ class Game {
             int width = 6;
             int alpha = 200;
 
-            for (const Move &move : bot->principalVariation) {
+            for (const Move &move : predictedVariation) {
                 BoardPos startPos = {(char) squareX(move.startSquare), (char) squareY(move.startSquare)};
                 BoardPos endPos = {(char) squareX(move.endSquare), (char) squareY(move.endSquare)};
 
@@ -410,30 +412,15 @@ class Game {
             
             playMove(bestResult.move);
 
-            botEvaluation = ((float) bestResult.score) / 100.0f;
-
-            printf("| Board Evaluation: %f\n", botEvaluation);
-
+            #if MESURE_LEVEL >= LOW_MESURE
             std::string text = "Noeuds : ";
             text += std::to_string(bot->nodeCount);
             shared->elements->counterText.setText(text.c_str());
+            #endif
 
-            float roundedEval = std::round(botEvaluation * 10.0f) / 10.0f;
+            setEvalValue(bestResult.score);
 
-
-            if (roundedEval == 0.0f) {
-                shared->elements->evaluationText.setText("0.0");
-            } else if (bestResult.score > CHECKMATE_BASE_SCORE-100 || bestResult.score < -CHECKMATE_BASE_SCORE+100) {
-                std::string evalText = "M ";
-                evalText += std::to_string(bot->principalVariation.size());
-                shared->elements->evaluationText.setText(evalText.c_str());
-            } else {
-                std::string evalText = std::to_string(roundedEval);
-                // Removes traling zeros
-                evalText.erase(evalText.find_last_not_of('0') + 1, std::string::npos);
-                evalText.erase(evalText.find_last_not_of('.') + 1, std::string::npos);
-                shared->elements->evaluationText.setText(evalText.c_str());
-            }
+            predictedVariation = bot->principalVariation;
 
             // FOR DEBUG
             printf("| Principal variation:\n");
@@ -451,6 +438,7 @@ class Game {
 
             // FOR DEBUG
             bot->printTTInfos();
+            bot->printMoveHistoryInfos();
             std::cout.flush();
 
             updateZobristHashText();
@@ -466,18 +454,45 @@ class Game {
             unmakeInfos.push_back(board.playMove(move));
             bot->onMovePlayed(board);
 
+            TTEntry ttEntry = bot->transpositionTable[bot->getTTIndex(board)];
+            if (ttEntry.zobristHash == board.zobristHash) {
+                // Score is probably a bound rather than an exact score
+                if (board.whiteTurn) {
+                    setEvalValue(ttEntry.score);
+                } else {
+                    setEvalValue(-ttEntry.score);
+                }
+
+                predictedVariation.clear();
+                Board boardCopy = board.copy();
+
+                int depthCounter = 8;   // Maximum depth
+
+                Move pvMove = ttEntry.bestMove;
+                while (pvMove != NO_MOVE && ttEntry.zobristHash == boardCopy.zobristHash && depthCounter > 0) {
+                    predictedVariation.push_back(pvMove);
+                
+                    boardCopy.playMove(pvMove);
+                
+                    ttEntry = bot->transpositionTable[bot->getTTIndex(boardCopy)];
+                    pvMove = ttEntry.bestMove;
+
+                    depthCounter -= 1;
+                }
+            }
+
             updateZobristHashText();
 
-            /*if (board.whiteTurn) {
-                printf("STATIC ANALYSIS : %d\n", bot->evaluatePosition(board));
-            } else {
-                printf("STATIC ANALYSIS : %d\n", -bot->evaluatePosition(board));
+            // TODO : REMOVE (TEST)
+            /*int eval = bot->evaluatePosition(board);
+            if (!board.whiteTurn) {
+                eval = -eval;
             }
-            std::cout.flush();*/
+            setEvalValue(eval);*/
         }
 
         void undoMove() {
-            if (moveHistory.size() == 0) {
+            if (moveHistory.size() < 1) {
                 return;
             }
 
@@ -644,6 +659,26 @@ class Game {
         void updateZobristHashText() {
             std::string text = std::format("Zobrist Hash : ({:x})", board.zobristHash);
             shared->elements->zobristHashText.setText(text.c_str());
+        }
+
+        void setEvalValue(int botEval) {
+            botEvaluation = ((float) botEval) / 100.0f;
+
+            float roundedEval = std::round(botEvaluation * 10.0f) / 10.0f;
+
+            if (roundedEval == 0.0f) {
+                shared->elements->evaluationText.setText("0.0");
+            } else if (botEval > CHECKMATE_BASE_SCORE-100 || botEval < -CHECKMATE_BASE_SCORE+100) {
+                std::string evalText = "M ";
+                evalText += std::to_string(bot->principalVariation.size());
+                shared->elements->evaluationText.setText(evalText.c_str());
+            } else {
+                std::string evalText = std::to_string(roundedEval);
+                // Removes traling zeros
+                evalText.erase(evalText.find_last_not_of('0') + 1, std::string::npos);
+                evalText.erase(evalText.find_last_not_of('.') + 1, std::string::npos);
+                shared->elements->evaluationText.setText(evalText.c_str());
+            }
         }
 };
 

@@ -13,9 +13,8 @@
 
 
 // Compile-time features
-const bool botPlaysBlack = false;
-const bool botPlaysWhite = false;
-
+const int FPS = 60;
+const int FRAME_DUARTION = 1000.0f / (float) FPS;       // Duration in ms
 const bool IS_PROFILING = false;
 
 
@@ -34,131 +33,83 @@ void profiling() {
     }
 }
 
-Board makeTestBoard() {
-    uint64_t colorBitBoards[2][PIECE_TYPE_COUNT] = {{
-        buildBitboard(      // Black Pawn
-            0b00000000,
-            0b00000000,
-            0b00000000,
-            0b00000000,
-            0b00000000,
-            0b00000000,
-            0b00000000,
-            0b00000000
-        ), buildBitboard(   // Black Bishop
-            0b00000000,
-            0b00100000,
-            0b00000000,
-            0b00000000,
-            0b00000000,
-            0b00000000,
-            0b00000000,
-            0b00000000
-        ), buildBitboard(   // Black Knight
-            0b00000000,
-            0b00000000,
-            0b00000000,
-            0b00000000,
-            0b00000000,
-            0b00000000,
-            0b00000000,
-            0b00000000
-        ), buildBitboard(   // Black Rook
-            0b00000000,
-            0b00000000,
-            0b10000000,
-            0b10000000,
-            0b00000000,
-            0b00000000,
-            0b00000000,
-            0b00000000
-        ), buildBitboard(   // Black Queen
-            0b10000000,
-            0b00000000,
-            0b00000000,
-            0b00000000,
-            0b00000000,
-            0b00000000,
-            0b00000000,
-            0b00000000
-        ), buildBitboard(   // Black King
-            0b00001000,
-            0b00000000,
-            0b00000000,
-            0b00000000,
-            0b00000000,
-            0b00000000,
-            0b00000000,
-            0b00000000
-        )
-    }, {buildBitboard(      // White Pawn
-            0b00000000,
-            0b00000000,
-            0b00000000,
-            0b00000000,
-            0b00000000,
-            0b00000000,
-            0b00000000,
-            0b00000000
-        ), buildBitboard(   // White Bishop
-            0b00000000,
-            0b00000000,
-            0b00000000,
-            0b00000000,
-            0b00000000,
-            0b00000000,
-            0b00000000,
-            0b00000000
-        ), buildBitboard(   // White Knight
-            0b00000000,
-            0b00000000,
-            0b00000000,
-            0b00000000,
-            0b00000000,
-            0b00000000,
-            0b00000000,
-            0b00000000
-        ), buildBitboard(   // White Rook
-            0b00000000,
-            0b00000000,
-            0b00000000,
-            0b00000000,
-            0b10000000,
-            0b00000000,
-            0b10000000,
-            0b00000000
-        ), buildBitboard(   // White Queen
-            0b00000000,
-            0b00000000,
-            0b00000000,
-            0b00000000,
-            0b00000000,
-            0b00000000,
-            0b00000000,
-            0b10000000
-        ), buildBitboard(   // White King
-            0b00000000,
-            0b00000000,
-            0b00000000,
-            0b00000000,
-            0b00000000,
-            0b00000000,
-            0b00000000,
-            0b00001000
-        )
-    }};
-    char castleFlag = 0b0000;
-    bool whiteTurn = true;
+bool botPlaysBlack = false;
+bool botPlaysWhite = false;
+std::string fenString = "";
 
-    return loadBoard(colorBitBoards, castleFlag, whiteTurn);
+
+void printUsage() {
+    
+    printf(
+        "\nProgram usage :\n"
+        "-fen \"<FEN>\"     Loads a fen position\n"
+        "--white          Plays as white\n"
+        "--black          Plays as black\n"
+        "--help           Prints this\n"
+    );
+    std::cout.flush();
 }
 
 
-const int FPS = 60;
-const int FRAME_DUARTION = 1000.0f / (float) FPS;       // Duration in ms
+void parseArguments(int argc, char * argv[]) {
+    for (int i = 1 ; i < argc ; i++) {
+        char * argument = argv[i];
+
+        if (strcmp(argument, "--white") == 0) {
+            botPlaysWhite = true;
+        } else if (strcmp(argument, "--black") == 0) {
+            botPlaysBlack = true;
+        } else if (strcmp(argument, "-fen") == 0) {
+            i += 1;
+
+            if (i >= argc) {
+                printf("Missing closing \" for flag -fen\n");
+                printUsage();
+                exit(-1);
+            }
+
+            fenString += argv[i];
+
+            /*printf("%s\n", argv[i]);
+
+            if (argv[i][0] != '"') {
+                printf("Missing opening \" for flag -fen\n");
+                printUsage();
+                throw;
+            }
+
+            // Removes the opening "
+            fenString = &argv[i][1];
+
+            i += 1;
+
+            while (fenString[fenString.size() - 1] != '"') {
+                if (i >= argc) {
+                    printf("Missing closing \" for flag -fen\n");
+                    printUsage();
+                    throw;
+                }
+                fenString += " " + fenString;
+
+                i += 1;
+            }
+            // Removes the closing ""
+            fenString.pop_back();
+            i -= 1;*/
+        } else if (strcmp(argument, "--help") == 0) {
+            printUsage();
+            exit(0);
+        } else {
+            printUsage();
+            exit(-1);
+        }
+    }
+}
 
 
-int main(int argc, char* argv[]) {
+int main(int argc, char * argv[]) {
+    parseArguments(argc, argv);
+
     genBitboardConstants();
     genZobristKeys();
     initBot();
@@ -201,7 +152,15 @@ int main(int argc, char* argv[]) {
 
     Bot * bot = new Bot();
     Shared * shared = new Shared();
-    Game game {renderer, shared, bot};
+
+    Board board;
+    if (fenString.empty()) {
+        board = {};
+    } else {
+        board = loadFEN(fenString);
+    }
+
+    Game game {renderer, shared, bot, board};
     Elements elements {renderer, shared};
     shared->game = &game;
     shared->elements = &elements;
@@ -209,8 +168,8 @@ int main(int argc, char* argv[]) {
     game.onElementsLoaded();
 
     // DEBUG
-    /*std::ifstream positionsFile ("testing/positions.bin", std::ios_base::binary);
-    game.board = loadBoardFile(positionsFile, 0);
+    /*std::ifstream positionsFile ("testPositions_10000.bin", std::ios_base::binary);
+    game.board = loadBoardFile(positionsFile, 2);
     positionsFile.close();*/
     // game.board = makeTestBoard();
 
@@ -241,6 +200,15 @@ int main(int argc, char* argv[]) {
         }
         
         SDL_RenderPresent(renderer);
+
+        if (game.board.state == NEUTRAL) {
+            if (botPlaysBlack && !game.board.whiteTurn) {
+                game.botPlays();
+            }
+            if (botPlaysWhite && game.board.whiteTurn) {
+                game.botPlays();
+            }
+        }
 
         while ( SDL_PollEvent( &windowEvent ) ) {
             switch( windowEvent.type ) {
@@ -279,20 +247,11 @@ int main(int argc, char* argv[]) {
                     case SDLK_p:
                         shared->showPV = !shared->showPV;
                         break;
-                    case SDLK_s:
+                    /*case SDLK_s:
                         // Toggles piece square table view on piece hover
                         game.pieceSquareTableViewMode = !game.pieceSquareTableViewMode;
-                        break;
+                        break;*/
                     }
-            }
-        }
-
-        if (game.board.state == NEUTRAL) {
-            if (botPlaysBlack && !game.board.whiteTurn) {
-                game.botPlays();
-            }
-            if (botPlaysWhite && game.board.whiteTurn) {
-                game.botPlays();
             }
         }
 
