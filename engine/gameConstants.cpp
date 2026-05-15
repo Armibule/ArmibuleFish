@@ -71,13 +71,13 @@ inline uint64_t popLastBit(uint64_t &bitBoard) {
     return LS1B;
 }
 // Returns the square corresponding to the bit
-inline uint64_t bitToSquare(uint64_t &b) {
+inline uint64_t bitToSquare(uint64_t b) {
     return _lzcnt_u64(b);
 }
 
 struct Move {
-    Square startSquare;
-    Square endSquare;
+    Square startSquare = 0;
+    Square endSquare = 0;
 
     PieceType promotionType = EMPTY;
     MoveType moveType = NORMAL_MOVE;
@@ -99,6 +99,7 @@ const int piecesCount[] = {
 };
 
 
+// From least to most valuable in material points (Bishop and Knights might be inverted)
 const PieceType promotionTypes[] = {
     BISHOP,
     KNIGHT,
@@ -215,16 +216,27 @@ constexpr Piece defaultBoardPieces[64] = {
 };
 
 
-void printMove(Move move) {
-    printf("Move (%d, %d) -> (%d, %d)\n", move.startSquare % 8u, move.startSquare / 8u, move.endSquare % 8u, move.endSquare / 8u);
+void printMove(const Move &move) {
+    printf("Move (%d, %d) -> (%d, %d) ", move.startSquare % 8u, move.startSquare / 8u, move.endSquare % 8u, move.endSquare / 8u);
+    if (move.moveType == EN_PASSANT) {
+        printf("EnPassant ");
+    } else if (move.moveType == SHORT_CASTLE) {
+        printf("ShortCastle ");
+    } else if (move.moveType == LONG_CASTLE) {
+        printf("LongCastle ");
+    }
+    if (move.promotionType != EMPTY) {
+        printf("Promotion ");
+    }
+    printf("\n");
 }
-void printPos(BoardPos pos) {
+void printPos(const BoardPos &pos) {
     printf("BoardPos (%d, %d)\n", pos.x, pos.y);
 }
 
 const bool colors[2] = {true, false};
 
-constexpr Move NO_MOVE = {makeSquare(0, 0), makeSquare(0, 0)};
+constexpr Move NO_MOVE = {0, 0};
 
 bool operator==(const BoardPos& a, const BoardPos& b) {
     return a.x == b.x && a.y == b.y;
@@ -352,42 +364,16 @@ void genZobristKeys() {
 }
 
 
-const std::string piecesEmojiColor[2][PIECE_TYPE_COUNT] = {
+
+// Bugged on some consoles...
+/*const std::string piecesEmojiColor[2][PIECE_TYPE_COUNT] = {
     {"♙", "♗", "♘", "♖", "♕", "♔"},
     {"♟", "♝", "♞", "♜", "♛", "♚"}
+};*/
+const char piecesEmojiColor[2][PIECE_TYPE_COUNT] = {
+    {'p', 'b', 'n', 'r', 'q', 'k'},
+    {'P', 'B', 'N', 'R', 'Q', 'K'}
 };
-
-
-// FEN Helper functions
-
-inline Piece fenCharToPiece(char c) {
-    switch (c) {
-        case 'P': return {PAWN, WHITE};
-        case 'B': return {BISHOP, WHITE};
-        case 'N': return {KNIGHT, WHITE};
-        case 'R': return {ROOK, WHITE};
-        case 'Q': return {QUEEN, WHITE};
-        case 'K': return {KING, WHITE};
-
-        case 'p': return {PAWN, BLACK};
-        case 'b': return {BISHOP, BLACK};
-        case 'n': return {KNIGHT, BLACK};
-        case 'r': return {ROOK, BLACK};
-        case 'q': return {QUEEN, BLACK};
-        case 'k': return {KING, BLACK};
-    }
-    return EMPTY_PIECE;
-}
-inline Square fenCoordinateToSquare(char letter, char digit) {
-    return makeSquare(letter - 'a', 8 - (digit - '0'));
-}
-struct FenCoordinateChars {
-    char letter;
-    char digit;
-};
-inline FenCoordinateChars squareToFenCoordinate(Square square) {
-    return {'a' + squareX(square), '8' - squareY(square)};
-}
 
 
 // Used for debug

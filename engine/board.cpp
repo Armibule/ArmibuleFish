@@ -44,7 +44,7 @@ class Board {
               const int whitePieces[PIECE_TYPE_COUNT], const int blackPieces[PIECE_TYPE_COUNT],
               const Piece pieces[64],
               char castlingFlag,
-              uint64_t zobristHash, const std::vector<uint64_t> &previousHashes, int clockResetIndex) {
+              uint64_t zobristHash, const std::vector<uint64_t> &previousHashes, int clockResetIndex, int ply) {
             
             this->whiteTurn = whiteTurn;
 
@@ -66,6 +66,7 @@ class Board {
             this->zobristHash = zobristHash;
             this->previousHashes = previousHashes;
             this->clockResetIndex = clockResetIndex;
+            this->ply = ply;
         
             calcOccupancy();
             recomputeAccumulators();
@@ -80,7 +81,7 @@ class Board {
             defaultBoardPieces, 
             initialCastlingFlag,
             /*false, 0.0f,*/
-            zobristDefaultGameHash, {}, 0
+            zobristDefaultGameHash, {}, 0, 0
         ) {}
 
         bool whiteTurn;
@@ -109,6 +110,7 @@ class Board {
         uint64_t zobristHash;
         std::vector<uint64_t> previousHashes;  // Previous game hashes since the last clear
         int clockResetIndex;    // Index of the first hash since the last capture/pawn move
+        int ply;    // Current helf move index
 
         // Incremental updated NNUE accumulators, used by the bot
         Accumulator whiteAccumulator;
@@ -122,7 +124,7 @@ class Board {
                 state, 
                 whitePieces, blackPieces, pieces, 
                 castlingFlag,
-                zobristHash, previousHashes, clockResetIndex);
+                zobristHash, previousHashes, clockResetIndex, ply);
         }
 
         void pieceMoves(Square square, PieceType pieceType, bool isWhite, std::vector<Move> &moves) {
@@ -224,23 +226,35 @@ class Board {
             }
 
             // No use of vectors, bitscan
-            while (attacksMask) {
-                Square bitSquare = popLastSquare(attacksMask);
+            if (pieceType == PAWN) {
+                while (attacksMask) {
+                    Square bitSquare = popLastSquare(attacksMask);
+                    Move move = {square, bitSquare};
 
-                Move move = {square, bitSquare};
+                    if (!leadsToCheck(move)) {
+                        if (canPawnPromote(squareY(bitSquare), isWhite)) {
+                            // Pawn promotions
+                            moves.push_back({square, bitSquare, QUEEN});
+                            moves.push_back({square, bitSquare, ROOK});
+                            moves.push_back({square, bitSquare, KNIGHT});
+                            moves.push_back({square, bitSquare, BISHOP});
+                        } else {
+                            [[likely]]
+                            moves.push_back(move);
+                        }
+                    }
+                }
+            } else {
+                while (attacksMask) {
+                    Square bitSquare = popLastSquare(attacksMask);
+                    Move move = {square, bitSquare};
 
-                if (!leadsToCheck(move)) {
-                    if (pieceType == PAWN && canPawnPromote(squareY(bitSquare), isWhite)) {
-                        // Pawn promotions
-                        moves.push_back({square, bitSquare, QUEEN});
-                        moves.push_back({square, bitSquare, ROOK});
-                        moves.push_back({square, bitSquare, KNIGHT});
-                        moves.push_back({square, bitSquare, BISHOP});
-                    } else {
+                    if (!leadsToCheck(move)) {
                         moves.push_back(move);
                     }
                 }
             }
+            
         }
         // Only for hasLegalMove method
         bool hasPieceMoves(Square square, PieceType pieceType, bool isWhite) {
@@ -327,19 +341,30 @@ class Board {
             attacksMask = attacksMask & occupencies[!isWhite];
 
             // No use of vectors
-            while (attacksMask) {
-                Square bitSquare = popLastSquare(attacksMask);
+            if (pieceType == PAWN) {
+                while (attacksMask) {
+                    Square bitSquare = popLastSquare(attacksMask);
+                    Move move = {square, bitSquare};
 
-                Move move = {square, bitSquare};
+                    if (!leadsToCheck(move)) {
+                        if (canPawnPromote(squareY(bitSquare), isWhite)) {
+                            // Pawn promotions
+                            moves.push_back({square, bitSquare, QUEEN});
+                            moves.push_back({square, bitSquare, ROOK});
+                            moves.push_back({square, bitSquare, KNIGHT});
+                            moves.push_back({square, bitSquare, BISHOP});
+                        } else {
+                            [[likely]]
+                            moves.push_back(move);
+                        }
+                    }
+                }
+            } else {
+                while (attacksMask) {
+                    Square bitSquare = popLastSquare(attacksMask);
+                    Move move = {square, bitSquare};
 
-                if (!leadsToCheck(move)) {
-                    if (pieceType == PAWN && canPawnPromote(squareY(bitSquare), isWhite)) {
-                        // Pawn promotions
-                        moves.push_back({square, bitSquare, QUEEN});
-                        moves.push_back({square, bitSquare, ROOK});
-                        moves.push_back({square, bitSquare, KNIGHT});
-                        moves.push_back({square, bitSquare, BISHOP});
-                    } else {
+                    if (!leadsToCheck(move)) {
                         moves.push_back(move);
                     }
                 }
@@ -365,7 +390,6 @@ class Board {
             // Bitscan
             while (piecesOccupency) {
                 Square bitSquare = popLastSquare(piecesOccupency);
-
                 Piece piece = getAt(bitSquare);
 
                 pieceMoves(bitSquare, piece.type, whiteTurn, moves);
@@ -397,11 +421,8 @@ class Board {
             uint64_t piecesOccupency = occupencies[whiteTurn];
 
             // Bitscan
-            uint64_t LS1B;
-            Square bitSquare;
             while (piecesOccupency) {
-                bitSquare = popLastSquare(piecesOccupency);
-
+                Square bitSquare = popLastSquare(piecesOccupency);
                 Piece piece = getAt(bitSquare);
 
                 pieceCaptureMoves(bitSquare, piece.type, whiteTurn, moves);
@@ -421,7 +442,6 @@ class Board {
             // Bitscan
             while (piecesOccupency) {
                 Square bitSquare = popLastSquare(piecesOccupency);
-
                 Piece piece = getAt(bitSquare);
 
                 if (hasPieceMoves(bitSquare, piece.type, whiteTurn)) {
@@ -484,9 +504,7 @@ class Board {
         }
         // Only to use in leadsToCheck function
         bool leadsToCheck_isInCheck(Square kingSquare) {
-            uint64_t * otherBB;
-
-            otherBB = colorBB[!whiteTurn];
+            uint64_t * otherBB = colorBB[!whiteTurn];
 
             // Maybe faster ?
             if (capturesMask(kingSquare, KNIGHT, whiteTurn) & otherBB[KNIGHT]) { return true; }
@@ -557,7 +575,7 @@ class Board {
         }
 
         // Displays using bitboards - For debug
-        /*Piece getAt(int x, int y) const {
+        Piece getAtDebug(int x, int y) const {
             uint64_t b = bit(x, y);
             // whiteOccupancy
             if (b & occupencies[WHITE] ) {  
@@ -577,7 +595,7 @@ class Board {
                 if (b & colorBB[BLACK][KING]  ) { return {KING, false}; }
             }
             return {EMPTY, false};
-        }*/
+        }
         // Displays efficiently
         Piece getAt(Square square) const {
             return pieces[square];
@@ -596,8 +614,10 @@ class Board {
         }
 
         // Returns the information to unmake the move
-        // TODO : Could have bugs with zobrist hashing, in particular with en passant
-        UnmakeMoveInfo playMove(const Move &move) {
+        // If updateNNUE is false, the accumulator changes are recorded but not applied
+        UnmakeMoveInfo playMove(const Move &move, bool updateNNUE=true) {
+            ply += 1;
+
             Square startSquare = move.startSquare;
             Square endSquare = move.endSquare;
 
@@ -701,6 +721,7 @@ class Board {
 
                     info.accumulatorChanges.pushSub({ROOK, whiteTurn}, rookStart);
                     info.accumulatorChanges.pushAdd({ROOK, whiteTurn}, rookEnd);
+
                     zobristHash ^= zobristPiecesSquaresColor[whiteTurn][ROOK][rookStart];
                     zobristHash ^= zobristPiecesSquaresColor[whiteTurn][ROOK][rookEnd];
 
@@ -770,6 +791,10 @@ class Board {
 
             // Clears start square
             colorBB[whiteTurn][piece.type] &= ~startBit;
+
+            /*colorBB[WHITE][piece.type] &= ~startBit;
+            colorBB[BLACK][piece.type] &= ~startBit;*/
+
             pieces[startSquare] = EMPTY_PIECE;
 
             // The side to move always alternates
@@ -784,8 +809,9 @@ class Board {
             isBlackCheckComputed = false;
             calcOccupancy();
 
-            nnue->applyAccumulatorChanges(whiteAccumulator, WHITE, info.accumulatorChanges);
-            nnue->applyAccumulatorChanges(blackAccumulator, BLACK, info.accumulatorChanges);
+            if (updateNNUE) {
+                updateNNUEAccumulators(info);
+            }
 
             if (!hasLegalMove()) {
                 if (isInCheck(whiteTurn)) {
@@ -801,9 +827,11 @@ class Board {
                 // Fifty moves rule
                 state = DRAW;
             } else {
+                [[likely]]
                 // Repetition rule
                 repetitionCount = 0;
-                for (int i = previousHashes.size()-3 ; i >= clockResetIndex ; i--) {
+
+                for (int i = previousHashes.size()-3 ; i >= clockResetIndex ; i-=2) {
                     if (previousHashes[i] == zobristHash) {
                         repetitionCount += 1;
 
@@ -817,8 +845,16 @@ class Board {
 
             return info;
         }
+        // updates the NNUE accumulators for example if they weren't during playMove()
+        inline void updateNNUEAccumulators(const UnmakeMoveInfo &info) {
+            nnue->applyAccumulatorChanges(whiteAccumulator, WHITE, info.accumulatorChanges);
+            nnue->applyAccumulatorChanges(blackAccumulator, BLACK, info.accumulatorChanges);
+        }
 
-        void undoMove(const Move &move, const UnmakeMoveInfo &info) {
+        // Set updateNNUE to false if the Accumulators have not been updated since previous playMove()
+        void undoMove(const Move &move, const UnmakeMoveInfo &info, bool updateNNUE=true) {
+            ply -= 1;
+
             Square startSquare = move.startSquare;
             Square endSquare = move.endSquare;
 
@@ -927,8 +963,10 @@ class Board {
             isBlackCheckComputed = false;
             calcOccupancy();
 
-            nnue->undoAccumulatorChanges(whiteAccumulator, WHITE, info.accumulatorChanges);
-            nnue->undoAccumulatorChanges(blackAccumulator, BLACK, info.accumulatorChanges);
+            if (updateNNUE) {
+                nnue->undoAccumulatorChanges(whiteAccumulator, WHITE, info.accumulatorChanges);
+                nnue->undoAccumulatorChanges(blackAccumulator, BLACK, info.accumulatorChanges);
+            }
 
             state = info.previousState;
         }
@@ -936,18 +974,20 @@ class Board {
         // For Null Move Pruning, be carefull as it erases allMoves cache
         // TODO : Maybe should reset enPassantBB ?
         void playNullMove() {
+            ply += 1;
+
             // Updates state
             whiteTurn = !whiteTurn;
-
             zobristHash ^= zobristWhiteMoves;
 
             /*areMovesComputed = false;
             allMoves.clear();*/
         }
         void undoNullMove() {
+            ply -= 1;
+
             // Reverts state
             whiteTurn = !whiteTurn;
-
             zobristHash ^= zobristWhiteMoves;
 
             /*areMovesComputed = false;
@@ -962,6 +1002,69 @@ class Board {
         }
         // Same as captures but includes the defense of your own pieces
         uint64_t attacksMask(Square square, PieceType pieceType, bool isWhite) const {
+            switch (pieceType) {
+                case PAWN:
+                    return colorsPawnAttacks[isWhite][square];
+                case KNIGHT:
+                    return knightAttacks[square];
+                case KING:
+                    return kingAttacks[square];
+
+                int index;
+
+                case BISHOP:
+                    {
+                        const MagicEntry bishopMagicEntry = bishopMagicEntries[square];
+                        index = applyMagic(
+                            bishopMagicEntry.mask & allOccupancy, 
+                            bishopMagicEntry.magic, 
+                            bishopMagicEntry.bitSize
+                        );
+
+                        return bishopMagicEntry.tablePtr[index];
+                    }
+
+                case ROOK:
+                    {
+                        const MagicEntry rookMagicEntry = rookMagicEntries[square];
+                        index = applyMagic(
+                            rookMagicEntry.mask & allOccupancy,
+                            rookMagicEntry.magic, 
+                            rookMagicEntry.bitSize
+                        );
+
+                        return rookMagicEntry.tablePtr[index];
+                    }
+
+                case QUEEN:
+                    {
+                        const MagicEntry diagonalsMagicEntry = bishopMagicEntries[square];
+                        index = applyMagic(
+                            diagonalsMagicEntry.mask & allOccupancy, 
+                            diagonalsMagicEntry.magic, 
+                            diagonalsMagicEntry.bitSize
+                        );
+
+                        uint64_t mask = diagonalsMagicEntry.tablePtr[index];
+
+                        const MagicEntry straightMagicEntry = rookMagicEntries[square];
+                        index = applyMagic(
+                            straightMagicEntry.mask & allOccupancy, 
+                            straightMagicEntry.magic, 
+                            straightMagicEntry.bitSize
+                        );
+
+                        mask |= straightMagicEntry.tablePtr[index];
+
+                        return mask;
+                    }
+            }
+
+            return 0;
+        }
+
+        // Same as captures but includes the defense of your own pieces
+        static uint64_t rawAttacksMask(Square square, PieceType pieceType, bool isWhite, uint64_t allOccupancy) {
             switch (pieceType) {
                 case PAWN:
                     return colorsPawnAttacks[isWhite][square];
@@ -1132,87 +1235,9 @@ Board loadBoard(uint64_t colorBitBoards[2][PIECE_TYPE_COUNT],
     }
 
     // Assumes the game is not finished and the half move clock is zero
-    return Board(whiteTurn, colorBitBoards, enPassantBB, whiteKingSquare, blackKingSquare, NEUTRAL, whitePieces, blackPieces, pieces, castlingFlag, zobristHash, {}, 0);
+    return Board(whiteTurn, colorBitBoards, enPassantBB, whiteKingSquare, blackKingSquare, NEUTRAL, whitePieces, blackPieces, pieces, castlingFlag, zobristHash, {}, 0, 0);
 }
-Board loadFEN(const std::string fenString) {
-    uint64_t colorBitBoards[2][PIECE_TYPE_COUNT] = {};
-    char castlingFlag = 0;
-    bool whiteTurn;
-    uint64_t enPassantBB = 0;
 
-    int index = 0;
-    for (int y = 0 ; y < 8 ; y++) {
-        int x = 0;
-
-        while (x < 8) {
-            char c = fenString[index];
-            if (std::isdigit(c)) {
-                int emptySquares = c - '0';
-                x += emptySquares;
-                index += 1;
-            } else {
-                Piece piece = fenCharToPiece(c);
-
-                if (piece.type == EMPTY) {
-                    printf("Board parsing - Unexpected symbol '%c' at position %d while reading FEN:\n", c, index);
-                    std::cout << fenString << std::endl;
-                    printf("x=%d, y=%d\n", x, y);
-                    throw std::invalid_argument(std::format("Board parsing - Unexpected symbol '{}' at position {} while reading FEN:\n", c, index));
-                }
-
-                colorBitBoards[piece.isWhite][piece.type] |= bit(x, y);
-
-                x += 1;
-                index += 1;
-            }
-        }
-        index += 1;
-    }
-
-    char sideToMoveChar = fenString[index];
-    if (sideToMoveChar == 'w') {
-        whiteTurn = WHITE;
-    } else if (sideToMoveChar == 'b') {
-        whiteTurn = BLACK;
-    } else {
-        printf("Turn parsing - Unexpected symbol '%c' at position %d while reading FEN:\n", sideToMoveChar, index);
-        std::cout << fenString << std::endl;
-        throw std::invalid_argument(std::format("Turn parsing - Unexpected symbol '{}' at position {} while reading FEN:\n", sideToMoveChar, index));
-    }
-    index += 2;
-
-    for (int i = 0 ; i < 5 ; i++) {
-        char castleRight = fenString[index];
-
-        if (castleRight == 'K')      { castlingFlag |= SHORT_CASTLE_WHITE; }
-        else if (castleRight == 'Q') { castlingFlag |= LONG_CASTLE_WHITE;  }
-        else if (castleRight == 'k') { castlingFlag |= SHORT_CASTLE_BLACK; }
-        else if (castleRight == 'q') { castlingFlag |= LONG_CASTLE_BLACK;  }
-        else if (castleRight == '-') {}
-        else if (castleRight == ' ') {
-            index += 1;
-            break;
-        }
-        else {
-            printf("Castling rights - Unexpected symbol '%c' at position %d while reading FEN:\n", castleRight, index);
-            std::cout << fenString << std::endl;
-            throw std::invalid_argument(std::format("Castling rights - Unexpected symbol '{}' at position {} while reading FEN:\n", castleRight, index));
-        }
-        index += 1;
-    }
-
-    if (fenString[index] == '-') {
-        index += 2;
-    } else {
-        Square enPassantSquare = fenCoordinateToSquare(fenString[index], fenString[index+1]);
-        enPassantBB = bit(enPassantSquare);
-        index += 3;
-    }
-
-    // TODO : Half move clock and full move clock are still left
-
-    return loadBoard(colorBitBoards, castlingFlag, whiteTurn, enPassantBB);
-}
 
 Board loadBoardFile(std::ifstream &file, int boardIndex) {
     // In bytes
@@ -1243,9 +1268,10 @@ void printBoard(const Board &board) {
             Piece piece = board.getAt(x, y);
 
             if (piece.type == EMPTY) {
-                line.append("□ ");
+                line.append("- ");
             } else {
-                line.append(piecesEmojiColor[piece.isWhite][piece.type]);
+                line += piecesEmojiColor[piece.isWhite][piece.type];
+                // line.append(piecesEmojiColor[piece.isWhite][piece.type]);
                 line.append(" ");
             }
         }

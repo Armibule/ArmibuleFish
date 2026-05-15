@@ -4,6 +4,7 @@
 #include "board.cpp"
 #include <math.h>
 #include <fstream>
+#include <stdexcept>
 
 
 
@@ -86,16 +87,18 @@ class NNUE {
     void applyAccumulatorChanges(Accumulator &accumulator, bool whiteAccumulatorPerspective, const AccumulatorChanges &accumulatorChanges) const {
         for (int n = 0 ; n < accumulatorChanges.addCount ; n++) {
             int inputIndex = pieceInputIndex(accumulatorChanges.addedPieces[n], accumulatorChanges.addedPiecesSquares[n], whiteAccumulatorPerspective);
-            
+            const int16_t * weights = accumulatorWeights[inputIndex];
+
             for (int i = 0 ; i < ACCUMULATOR_SIZE ; i++) {
-                accumulator.values[i] += accumulatorWeights[inputIndex][i];
+                accumulator.values[i] += weights[i];
             }
         }
         for (int n = 0 ; n < accumulatorChanges.removeCount ; n++) {
             int inputIndex = pieceInputIndex(accumulatorChanges.removedPieces[n], accumulatorChanges.removedPiecesSquares[n], whiteAccumulatorPerspective);
-            
+            const int16_t * weights = accumulatorWeights[inputIndex];
+
             for (int i = 0 ; i < ACCUMULATOR_SIZE ; i++) {
-                accumulator.values[i] -= accumulatorWeights[inputIndex][i];
+                accumulator.values[i] -= weights[i];
             }
         }
     }
@@ -103,16 +106,18 @@ class NNUE {
     void undoAccumulatorChanges(Accumulator &accumulator, bool whiteAccumulatorPerspective, const AccumulatorChanges &accumulatorChanges) const {
         for (int n = 0 ; n < accumulatorChanges.addCount ; n++) {
             int inputIndex = pieceInputIndex(accumulatorChanges.addedPieces[n], accumulatorChanges.addedPiecesSquares[n], whiteAccumulatorPerspective);
-            
+            const int16_t * weights = accumulatorWeights[inputIndex];
+
             for (int i = 0 ; i < ACCUMULATOR_SIZE ; i++) {
-                accumulator.values[i] -= accumulatorWeights[inputIndex][i];
+                accumulator.values[i] -= weights[i];
             }
         }
         for (int n = 0 ; n < accumulatorChanges.removeCount ; n++) {
             int inputIndex = pieceInputIndex(accumulatorChanges.removedPieces[n], accumulatorChanges.removedPiecesSquares[n], whiteAccumulatorPerspective);
-            
+            const int16_t * weights = accumulatorWeights[inputIndex];
+
             for (int i = 0 ; i < ACCUMULATOR_SIZE ; i++) {
-                accumulator.values[i] += accumulatorWeights[inputIndex][i];
+                accumulator.values[i] += weights[i];
             }
         }
     }
@@ -149,6 +154,10 @@ class NNUE {
         NNUE * network = new NNUE();
 
         std::ifstream file (fileName, std::ios_base::binary);
+        if (!file.good()) {
+            throw std::invalid_argument("The NNUE file is not found !");
+        }
+
         file.read((char *) network->accumulatorWeights, sizeof(int16_t) * ACCUMULATOR_SIZE*INPUT_LAYER_SIZE);
         file.read((char *) network->accumulatorBiases, sizeof(int16_t) * ACCUMULATOR_SIZE);
         file.read((char *) network->outputWeightsBuckets, sizeof(int16_t) * OUTPUT_BUCKETS*ACCUMULATOR_SIZE*2);

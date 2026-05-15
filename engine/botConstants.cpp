@@ -9,71 +9,129 @@
 #define NO_MESURE 0
 #define LOW_MESURE 1
 #define ALL_MESURE 2
-#define MESURE_LEVEL NO_MESURE // NO_MESURE // ALL_MESURE
+#define MESURE_LEVEL ALL_MESURE // NO_MESURE // ALL_MESURE
 
 
 //    Time controls
 
-// Time that the bot can take, in milliseconds
-float DEFAULT_BOT_TIME = /*100.0f;*/ 8000.0f; /*16000.0f;*/ /*100000.0f;*/ /*5000.0f;*/ // 0.0001f;
-// Time at which the search is cancelled it is too long, in milliseconds
-float MAX_BOT_TIME = 20000.0f; //50000.0f; //300000.0f;
+// Default time that the bot can take, in milliseconds, can be overwritten
+float DEFAULT_BOT_TIME = 8000.0f; // 0.0001f;
+// Default time at which the search is cancelled it is too long, in milliseconds, can be overwritten
+float MAX_BOT_TIME = 20000.0f;
 
 
 //    General settings
 
-const int TT_BITS = 24; // 20;
+// Transposition Table
+const int TTBits_128M = 22; // 22 is approximately 128MB with sizeof(TTEntry) = 32 bytes
+const int TT_BITS = 24; // TTBits_128M; // 24;
 const uint64_t TTSize = 1ULL << TT_BITS;
 const uint64_t TTMask = TTSize - 1ULL;
 
-const int NORMAL_DEPTH = 7; // 7; // 8; // 7;      // Minimal depth searched
-const int MAX_QUIESCENCE_DEPTH = 4; // 4;     // Limits Quiescence Search - 
-const int MAX_SEARCH_EXTENSION = 1; // 1;
+// Depths
+const int MAX_DEPTH = 128;  // Limits the search depth to a reasonable number
+const int NORMAL_DEPTH = 5; // 6; // 7; // 8;      // Minimal depth searched
+const int MAX_QUIESCENCE_DEPTH = 8; // 5; // 4;     // Limits Quiescence Search - 
+const int MAX_SEARCH_EXTENSION = 1; //1; // 1;
+const int MAX_HORIZON_EXTENSION = 1; // 1;
 
 
 //    NNUE settings
 // const char * NNUE_FILE = "networks/network_128_30bucket_14.4M_testStd0.10098.nnue3";
-const char * NNUE_FILE = "networks/network_128_30bucket_13.4M_testStd0.10029.nnue3";
+const char * NNUE_FILE = /*"networks/network_128_30bucket_19.9M_testStd0.10462.nnue3";*/ "networks/network_128_30bucket_13.4M_testStd0.10029.nnue3";     // OLD NET "networks/network_128_30bucket_19.9M_testStd0.10514.nnue3";
 NNUE * nnue = NNUE::fromFile(NNUE_FILE);
 
 
 // Pruning constants
 
+const int REVERSE_FUTILITY_MARGIN = 200; // 200;
 const int FUTILITY_MARGIN = 300;
-
-// Reduction of depth during a null move pruning, includes normal depth decrement
-const int NullMovePruningReduction = 4;
-const int NMPRejectMargin = 30;      // If the position is farther from the pruning bounds, avoid NMP
-
-// Starts late Move Reduction when depth is smaller or equal than currentDepth minus this
-// const int minLMRDraft = 0; // 2;
-// Disables LMR under this depth
-// const int minLMRDepth = 3; // Should be > 1
-// TODO : IN TEST
-// Different levels can't have the same value !
-const int LMR1_MOVE_NUMBER = 1;  // Number of moves from which LMR1 is applied
-const int LMR2_MOVE_NUMBER = 2;  // Number of moves from which LMR2 is applied
-const int LMR3_MOVE_NUMBER = 4;  // Number of moves from which LMR2 is applied
-const int LMR4_MOVE_NUMBER = 8;  // Number of moves from which LMR2 is applied
-// const int LMR5_MOVE_NUMBER = 16;  // Number of moves from which LMR2 is applied
-
-
 // const int DELTA_PRUNING_MARGIN = 200;
 
 
-// Should have some margin from INT32_MIN to prevent underflows
+// Reduction of depth during a null move pruning, includes normal depth decrement
+const int NullMovePruningReduction = 4;
+const int NMPRejectMargin = 10; // 30;      // If the position is farther from the pruning bounds, avoid NMP
+
+// Different levels can't have the same value !
+const int LMR1_MOVE_NUMBER = 1;  // Number of moves from which LMR1 is applied
+const int LMR2_MOVE_NUMBER = 3;  // Number of moves from which LMR2 is applied
+const int LMR3_MOVE_NUMBER = 5;  // Number of moves from which LMR3 is applied
+const int LMR4_MOVE_NUMBER = 10;  // Number of moves from which LMR4 is applied
+// // LMR for moves near the root (less reduction is applied)
+const int LMR1_LOWDEPTH_MOVE_NUMBER = 2;  // Number of moves from which LMR1 is applied
+const int LMR2_LOWDEPTH_MOVE_NUMBER = 5;  // Number of moves from which LMR2 is applied
+const int LMR3_LOWDEPTH_MOVE_NUMBER = 8;  // Number of moves from which LMR3 is applied
+const int LMR4_LOWDEPTH_MOVE_NUMBER = 14;  // Number of moves from which LMR4 is applied
+
+
+/*// TEST
+const int LMR3_MOVE_NUMBER = 8;  // Number of moves from which LMR3 is applied
+const int LMR4_MOVE_NUMBER = 16;  // Number of moves from which LMR4 is applied*/
+/*
+Old values, maybe 20-30 elo worse ?
+const int LMR3_MOVE_NUMBER = 4;  // Number of moves from which LMR2 is applied
+const int LMR4_MOVE_NUMBER = 8;  // Number of moves from which LMR2 is applied
+*/
+// const int LMR5_MOVE_NUMBER = 20;  // Number of moves from which LMR5 is applied
+
+
+// Should have some margin from INT32_MIN to prevent overflows/underflows
 const int INFINITE_SCORE =       999999'99;
 const int CHECKMATE_BASE_SCORE = 9999'99;
 
 
-// Move History Heuristic (work in progress)
-const int moveHistoryDecayFactor = 180;   // Proportion of value kept between iterations, between 0 and 256
-const int moveHistoryValueFactor = 1;   // Increases the history bonus by depth*factor
-const int moveHistoryMaxValue = 200;
-const int moveHistoryMinValue = -200;
+// Move History Heuristic
+// const int moveHistoryDecayFactor = 64;   // Proportion of value kept between iterations, between 0 and 256
+const int moveHistoryValueFactor =  2'56 * 8;   // Each move history point gives 1/moveHistoryValueFactor score
+const int moveHistoryMaxValue =   200'00 * 8;
+
+const int captureMoveHistoryValueFactor =  2'56 * 8;   // Each move history point gives 1/moveHistoryValueFactor score
+const int captureMoveHistoryMaxValue =   2'56*8 * 128; // 512;// 64; // 128; // 64;
 
 
-// const int checkValue = 100;
+// Correction History heuristic (Work In progress)
+
+//    Pawn Structure
+const int PAWN_CORRECTION_FACTOR = 8192;
+const int MAX_PAWN_CORRECTION = 8192 * 512; // 256;
+const uint64_t PAWN_CORRHIST_BITS = 10ULL;
+const int PAWN_CORRHIST_SIZE = 1 << PAWN_CORRHIST_BITS;
+const uint64_t PAWN_CORRHIST_MAGIC = 0x3376e28b7de462a2ULL;     // Currently random
+
+//    Material Structure
+const int MATERIAL_CORRECTION_FACTOR = 8192;
+const int MAX_MATERIAL_CORRECTION = 8192 * 512; // 256;
+const uint64_t MATERIAL_CORRHIST_BITS = 10ULL;
+const int MATERIAL_CORRHIST_SIZE = 1 << MATERIAL_CORRHIST_BITS;
+// Currently random, indexed by color, pieceType   (KING is not used)
+constexpr uint64_t MATERIAL_CORRHIST_MAGICS[2][6] = {
+    {
+        0x1e843dbd0e8da739,
+        0x3c2c2cdc0f8a5d10,
+        0x8c57e40314f6d812,
+        0x932a2c81e882bd85,
+        0x1f115c3c7fe7bac8,
+        0xec446cdf21094dc8
+    }, {
+        0x453ea0ff12f69f75,
+        0x876dd898da2755df,
+        0x596c13db66d7d5b9,
+        0xa351183bbba1c5bc,
+        0x8fcd59ce34f6b9ff,
+        0x9790d4fcf5a26f46
+    }
+};
+
+//    Kings position
+const int KINGS_CORRECTION_FACTOR = 2048;
+const int MAX_KINGS_CORRECTION = 2048 * 128;// * 256;
+
+
+const int checkValue = 40;
+
+// Killer Moves Heuristic (Work in progress)
+// const int KILLER_MOVES_COUNT = 2;   // Hard coded (more efficient)
 
 
 //    Evaluation values - Values are in centipawns (DEPRECATED)

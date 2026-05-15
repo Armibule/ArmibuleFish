@@ -12,7 +12,11 @@
 #include <x86intrin.h>
 
 
-typedef int Square;
+// typedef int Square;
+// TEST : Should be ok
+typedef char Square;
+
+
 
 inline uint64_t bit(int x, int y) {
     // return 1ULL << ((7ULL - x) + 8ULL*(7ULL - y));
@@ -51,11 +55,16 @@ inline void bitscan(uint64_t x, std::vector<char> &indexes) {
 
 
 void printBB(uint64_t bitBoard) {
+    char s[9] = {};
     for (int i = 0 ; i < 8 ; i++) {
         for (int j = 0 ; j < 8 ; j++) {
-            printf("%d", 1 & (bitBoard >> (63 - 8*i - j)));
+            if (1 & (bitBoard >> (63 - 8*i - j))) {
+                s[j] = '1';
+            } else {
+                s[j] = '0';
+            }
         }
-        printf("\n");
+        printf("%s\n", s);
     }
     printf("\n");
 }

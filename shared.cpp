@@ -32,7 +32,13 @@ class Shared {
         TTF_Font * bigFont;
 
         Shared() {
-            #if defined(_WIN32) || defined(_WIN64)
+            // Font from google fonts to remove Windows dependency !
+            verySmallFont = TTF_OpenFont("assets/fonts/Miranda_Sans/static/MirandaSans-Medium.ttf", 16);
+            smallFont     = TTF_OpenFont("assets/fonts/Miranda_Sans/static/MirandaSans-Medium.ttf", 26);
+            mediumFont    = TTF_OpenFont("assets/fonts/Miranda_Sans/static/MirandaSans-Medium.ttf", 36);
+            bigFont       = TTF_OpenFont("assets/fonts/Miranda_Sans/static/MirandaSans-Medium.ttf", 66);
+            
+            /*#if defined(_WIN32) || defined(_WIN64)
                 verySmallFont = TTF_OpenFont("C:\\Windows\\Fonts\\micross.ttf", 16);
                 smallFont = TTF_OpenFont("C:\\Windows\\Fonts\\micross.ttf", 26);
                 mediumFont = TTF_OpenFont("C:\\Windows\\Fonts\\micross.ttf", 36);
@@ -40,7 +46,7 @@ class Shared {
             #else
                 printf("Font file not implemented for this platform");
                 throw;
-            #endif
+            #endif*/
         }
 
         void update() {
@@ -49,7 +55,7 @@ class Shared {
             }
 
             prevCursor = currentCursor;
-            currentCursor = CURSOR_ARROW;
+            // currentCursor = CURSOR_ARROW;
         }
 
         SDL_Cursor * const CURSOR_ARROW = SDL_CreateSystemCursor(SDL_SystemCursor::SDL_SYSTEM_CURSOR_ARROW);
@@ -58,7 +64,6 @@ class Shared {
     private:
         SDL_Cursor * prevCursor;
 };
-
 
 #include "elements.cpp"
 #include "game.cpp"

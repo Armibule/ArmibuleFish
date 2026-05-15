@@ -2,7 +2,7 @@
 #define UI_CONSTANTS
 
 int const SCREEN_WIDTH{1080};
-int const SCREEN_HEIGHT{720};
+int const SCREEN_HEIGHT{720 + 40};
 
 
 const char* whiteFiles[] {

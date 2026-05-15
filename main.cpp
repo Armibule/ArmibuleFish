@@ -2,14 +2,8 @@
 
 #include <iostream>
 #include <string>
-#include <SDL2/SDL.h>
-#include <SDL2/SDL_image.h>
-#include <SDL2/SDL_ttf.h>
 #include <windows.h>
-#include "shared.cpp"
-#include "UIConstants.cpp"
 #include "game.cpp"
-#include "elements.cpp"
 
 
 // Compile-time features
@@ -39,13 +33,13 @@ std::string fenString = "";
 
 
 void printUsage() {
-    
     printf(
         "\nProgram usage :\n"
-        "-fen \"<FEN>\"     Loads a fen position\n"
-        "--white          Plays as white\n"
-        "--black          Plays as black\n"
-        "--help           Prints this\n"
+        " -fen \"<FEN>\"                Loads a fen position\n"
+        " -time <meanTime> <maxTime>  Sets think time of the engine, in milliseconds\n"
+        " --white                     Plays as white\n"
+        " --black                     Plays as black\n"
+        " --help                      Prints this\n"
     );
     std::cout.flush();
 }
@@ -60,42 +54,25 @@ void parseArguments(int argc, char * argv[]) {
         } else if (strcmp(argument, "--black") == 0) {
             botPlaysBlack = true;
         } else if (strcmp(argument, "-fen") == 0) {
-            i += 1;
-
-            if (i >= argc) {
+            if (i + 1 >= argc) {
                 printf("Missing closing \" for flag -fen\n");
                 printUsage();
                 exit(-1);
             }
 
-            fenString += argv[i];
-
-            /*printf("%s\n", argv[i]);
-
-            if (argv[i][0] != '"') {
-                printf("Missing opening \" for flag -fen\n");
+            i += 1;
+            fenString = argv[i];
+        } else if (strcmp(argument, "-time") == 0) {
+            if (i + 2 >= argc) {
+                printf("Missing arguments for -time\n");
                 printUsage();
-                throw;
+                exit(-1);
             }
-
-            // Removes the opening "
-            fenString = &argv[i][1];
 
             i += 1;
-
-            while (fenString[fenString.size() - 1] != '"') {
-                if (i >= argc) {
-                    printf("Missing closing \" for flag -fen\n");
-                    printUsage();
-                    throw;
-                }
-                fenString += " " + fenString;
-
-                i += 1;
-            }
-            // Removes the closing ""
-            fenString.pop_back();
-            i -= 1;*/
+            DEFAULT_BOT_TIME = std::atof(argv[i]);
+            i += 1;
+            MAX_BOT_TIME = std::atof(argv[i]);
         } else if (strcmp(argument, "--help") == 0) {
             printUsage();
             exit(0);
@@ -150,8 +127,8 @@ int main(int argc, char * argv[]) {
 
     SDL_Event windowEvent;
 
-    Bot * bot = new Bot();
     Shared * shared = new Shared();
+    Bot * bot = new Bot();
 
     Board board;
     if (fenString.empty()) {
@@ -180,7 +157,8 @@ int main(int argc, char * argv[]) {
         SDL_SetRenderDrawColor( renderer, 255, 255, 255, 255 );
         SDL_RenderClear( renderer );
 
-        shared->update();
+        shared->currentCursor = shared->CURSOR_ARROW;
+
         if (shared->menu == Menu::playing) {
             game.update();
         }
@@ -254,6 +232,8 @@ int main(int argc, char * argv[]) {
                     }
             }
         }
+
+        shared->update();
 
         int newTick = SDL_GetTicks();
         SDL_Delay(std::max(FRAME_DUARTION - (newTick - lastTick), 0));

@@ -176,13 +176,16 @@ class Elements {
             buttons[2] = &settingsBackButton;
 
             debugSettingText = {renderer, shared, shared->mediumFont, {140, 168}, Menu::settings, "Debug activé"};
-            counterText = {renderer, shared, shared->smallFont, {20, 0}, Menu::playing, "Noeuds : 0", !shared->debugEnabled};
+            counterText = {renderer, shared, shared->smallFont, {20, 10}, Menu::playing, "Noeuds : 0", !shared->debugEnabled};
             evaluationText = {renderer, shared, shared->verySmallFont, {0, 0}, Menu::playing, "0.0", false, true, false, true};
-            zobristHashText = {renderer, shared, shared->smallFont, {300, 0}, Menu::playing, " ",  !shared->debugEnabled};
+            zobristHashText = {renderer, shared, shared->smallFont, {400, 10}, Menu::playing, " ",  !shared->debugEnabled};
+            depthText = {renderer, shared, shared->smallFont, {20, 50}, Menu::playing, "Depth : ",  !shared->debugEnabled};
+            
             texts[0] = &debugSettingText;
             texts[1] = &counterText;
             texts[2] = &evaluationText;
             texts[3] = &zobristHashText;
+            texts[4] = &depthText;
         }
 
         Button settingsButton;
@@ -194,7 +197,8 @@ class Elements {
         Text counterText;
         Text evaluationText;
         Text zobristHashText;
-        Text * texts[4];
+        Text depthText;
+        Text * texts[5];
 };
 
 
@@ -208,10 +212,12 @@ void debugToggleCallback(Shared * shared) {
         shared->elements->debugSettingText.setText("Debug activé");
         shared->elements->counterText.hidden = false;
         shared->elements->zobristHashText.hidden = false;
+        shared->elements->depthText.hidden = false;
     } else {
         shared->elements->debugSettingText.setText("Debug désactivé");
         shared->elements->counterText.hidden = true;
         shared->elements->zobristHashText.hidden = true;
+        shared->elements->depthText.hidden = true;
     }
 }
 void settingsBackCallback(Shared * shared) {

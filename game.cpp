@@ -1,19 +1,20 @@
 #ifndef GAME
 #define GAME
 
-#include <SDL2/SDL.h>
-#include <SDL2/SDL_image.h>
+
 #include <SDL2/SDL2_gfxPrimitives.h>
-#include "shared.cpp"
-#include "engine/board.cpp"
-#include "UIConstants.cpp"
-#include "engine/gameConstants.cpp"
 #include "engine/bot.cpp"
+#include "shared.cpp"
 #include <array>
 #include <vector>
 #include <memory>
 #include <chrono>
+#include <thread>
+#include <mutex>
 
+
+
+// TODO : Not very thread safe
 
 class Game {
     public:
@@ -21,9 +22,16 @@ class Game {
         Shared * shared;
         Bot * bot;
 
+        // Set to NULL when no search is being made
+        std::mutex botThreadMutex;
+        std::thread * botThread = NULL;
+        MoveResult obtainedResult = {};     // Check if move is NO_MOVE to see if there is a result to process
+
         std::vector<Move> predictedVariation = {};
 
-        // bool pieceSquareTableViewMode = false;
+        float piecesDisplayPosX[64] = {};
+        float piecesDisplayPosY[64] = {};
+        float pieceDisplayPosLerp = 0.15f;
 
         Game() = delete;
         Game(SDL_Renderer* renderer, Shared * shared, Bot * bot, Board &board) : renderer(renderer)  {
@@ -47,23 +55,21 @@ class Game {
             captureIconRect = {0, 0, captureIconSize, captureIconSize};
 
             loadTextures();
+
+            for (int i = 0 ; i < 64 ; i++) {
+                piecesDisplayPosX[i] = boardRect.x + boardRect.w * 0.5f;
+                piecesDisplayPosY[i] = boardRect.y + boardRect.h * 0.5f;
+            }
         };
 
         void update() {
             int xMouse, yMouse;
             SDL_GetMouseState( &xMouse, &yMouse );
 
-            
-            /*if (pieceSquareTableViewMode) {
-                Piece hoveredPiece = board.getAt(posToBoard(xMouse, yMouse));
-                if (hoveredPiece.type == EMPTY) {
-                    drawBoard(xMouse, yMouse);
-                } else {
-                    drawPieceSquareTable(hoveredPiece);
-                }
-            } else {*/
-                drawBoard(xMouse, yMouse);
-            // }
+            checkBotMove();
+            updateBotInfo();
+
+            drawBoard(xMouse, yMouse);
             
             if ( holdPieceMoves.size() > 0 ) {
                 drawMoves(xMouse, yMouse);
@@ -81,51 +87,36 @@ class Game {
             }
         }
 
-        /*void drawPieceSquareTable(const Piece &piece) {
-            SDL_SetRenderDrawColor( renderer, 255, 206, 158, 255 );
-            SDL_RenderFillRect( renderer, &boardOutline1 );
+        void updatePiecesDisplayPos() {
+            int screenX, screenY;
+            for (Square square = 0 ; square < 64 ; square++) {
+                boardPosToScreenPos(squareX(square), squareY(square), screenX, screenY);
+
+                piecesDisplayPosX[square] += ((float) screenX - piecesDisplayPosX[square])*pieceDisplayPosLerp;
+                piecesDisplayPosY[square] += ((float) screenY - piecesDisplayPosY[square])*pieceDisplayPosLerp;
+            }
+        }
+
+        void drawPieces(int xMouse, int yMouse) {
+            updatePiecesDisplayPos();
             
-            if (board.whiteTurn) {
-                SDL_SetRenderDrawColor( renderer, 255, 255, 255, 255 );
-                SDL_RenderFillRect( renderer, &boardOutline2 );
-            } else {
-                SDL_SetRenderDrawColor( renderer, 0, 0, 0, 255 );
-                SDL_RenderFillRect( renderer, &boardOutline2 );
-            }
-
-            for (char y = 0 ; y < ROW_COUNT ; y++) {
-                for (char x = 0 ; x < ROW_COUNT ; x++) {
-                    moveRectToBoardPos(cellRect, x, y);
-
-                    int scoreOpening = pieceValuesPosOpeningColor[piece.isWhite][piece.type][makeSquare(x, y)];
-                    int scoreEndgame = pieceValuesPosEndgameColor[piece.isWhite][piece.type][makeSquare(x, y)];
-                    int score = lerpScore(scoreOpening, scoreEndgame, board.phase);
-                    int value = score;
-                    if (piece.isWhite) {
-                        value -= piecesStandardValue[piece.type];
-                    } else {
-                        value += piecesStandardValue[piece.type];
-                    }
-
-                    SDL_SetRenderDrawColor( renderer, 128 + value/2, 128 + value/2, 128 + value/2, 255 );
-                    
-                    SDL_RenderFillRect( renderer, &cellRect );
+            for (Square square = 0 ; square < 64 ; square++) {
+                // Can be refoctored
+                if ( isPromotionAsked && (askedPromotionStartPos.x == squareX(square) || askedPromotionStartPos.y == squareY(square)) ) {
+                    continue;
                 }
-            }
-
-            // Draw pieces
-            for (char y = 0 ; y < ROW_COUNT ; y++) {
-                for (char x = 0 ; x < ROW_COUNT ; x++) {
-                    moveRectToBoardPos(cellRect, x, y);
-
-                    if ( !isPromotionAsked || (askedPromotionStartPos.x != x || askedPromotionStartPos.y != y) ) {
-                        if ( holdPieceMoves.size() == 0 || x != holdPiecePos.x || y != holdPiecePos.y ) {
-                            drawPiece( board.getAt(x, y) );
-                        }
-                    }
+                if ( holdPieceMoves.size() != 0 && squareX(square) == holdPiecePos.x && squareY(square) == holdPiecePos.y ) {
+                    continue;
                 }
+
+                Piece piece = board.getAt(square);
+
+                cellRect.x = std::roundl(piecesDisplayPosX[square]);
+                cellRect.y = std::roundl(piecesDisplayPosY[square]);
+
+                drawPiece(piece, cellRect);
             }
-        }*/
+        }
 
         void drawBoard(int xMouse, int yMouse) {
             SDL_SetRenderDrawColor( renderer, 255, 206, 158, 255 );
@@ -167,17 +158,7 @@ class Game {
             }
 
             // Draw pieces
-            for (char y = 0 ; y < ROW_COUNT ; y++) {
-                for (char x = 0 ; x < ROW_COUNT ; x++) {
-                    moveRectToBoardPos(cellRect, x, y);
-
-                    if ( !isPromotionAsked || (askedPromotionStartPos.x != x || askedPromotionStartPos.y != y) ) {
-                        if ( holdPieceMoves.size() == 0 || x != holdPiecePos.x || y != holdPiecePos.y ) {
-                            drawPiece( board.getAt(x, y) );
-                        }
-                    }
-                }
-            }
+            drawPieces(xMouse, yMouse);
 
             // Draw promotion selector
             if (isPromotionAsked) {
@@ -189,6 +170,11 @@ class Game {
                     drawPromotionPiece( Piece{promotionTypes[i], board.whiteTurn}, xMouse, yMouse );
                 }
             }
+        }
+
+        void boardPosToScreenPos(char boardX, char boardY, int &screenX, int &screenY) {
+            screenX = boardX * cellRect.w + boardRect.x;
+            screenY = boardY * cellRect.w + boardRect.y;
         }
 
         void moveRectToBoardPos(SDL_Rect &rect, char x, char y) {
@@ -213,7 +199,7 @@ class Game {
 
             cellRect.x = xMouse - cellRect.w/2;
             cellRect.y = yMouse - cellRect.w/2;
-            drawPiece( board.getAt(holdPiecePos) );
+            drawPiece(board.getAt(holdPiecePos), cellRect);
         }
 
         void drawEvalutionBar() {
@@ -327,7 +313,7 @@ class Game {
         }
 
         void mouseDown(const int mouseX, const int mouseY) {
-            if (board.state != NEUTRAL) {
+            if (board.state != NEUTRAL || botThread != NULL) {
                 return;
             }
 
@@ -348,7 +334,7 @@ class Game {
         }
 
         void mouseUp(const int mouseX, const int mouseY) {
-            if (board.state != NEUTRAL) {
+            if (board.state != NEUTRAL || botThread != NULL) {
                 return;
             }
 
@@ -391,33 +377,59 @@ class Game {
             holdPieceMoves.clear();
         }
 
+        void updateBotInfo() {
+            if (botThread != NULL) {
+                shared->currentCursor = shared->CURSOR_WAIT_ARROW;
+                shared->update();
+
+                updateDebugText();
+                if (board.whiteTurn) {
+                    setEvalValue(bot->currentResult.score);
+                } else {
+                    setEvalValue(-bot->currentResult.score);
+                }
+                predictedVariation = bot->principalVariation;
+            }
+        }
+
         void botPlays() {
             if (board.state != NEUTRAL) {
                 printf("----- The game is over -----\n");
                 std::cout.flush();
                 return;
             }
+            if (botThread != NULL) {
+                return;
+            }
+
             shared->currentCursor = shared->CURSOR_WAIT_ARROW;
             shared->update();
 
-            printf("----- Bot plays -----\n");
+            printf("----- Bot thinks -----\n");
 
-            MoveResult bestResult = bot->getBestMove(board);
+            botThread = new std::thread(startBotSearch, this, bot, &board);
+            
+            // in case the user holds a piece at the same time
+            holdPieceMoves.clear();
+        }
 
-            if (bestResult.move == NO_MOVE) {
-                printf("----- NULL MOVE PLAYED -----\n");
-                std::cout.flush();
+        void checkBotMove() {
+            if (botThread == NULL) {
                 return;
             }
+
+            botThreadMutex.lock();
+            MoveResult bestResult = obtainedResult;
+            botThreadMutex.unlock();
+
+            if (obtainedResult.move == NO_MOVE) {
+                return;
+            }
+
+            // If not the bot has played
+            botThread->join();       // In case there is some thing left
             
             playMove(bestResult.move);
-
-            #if MESURE_LEVEL >= LOW_MESURE
-            std::string text = "Noeuds : ";
-            text += std::to_string(bot->nodeCount);
-            shared->elements->counterText.setText(text.c_str());
-            #endif
-
             setEvalValue(bestResult.score);
 
             predictedVariation = bot->principalVariation;
@@ -439,20 +451,42 @@ class Game {
             // FOR DEBUG
             bot->printTTInfos();
             bot->printMoveHistoryInfos();
+            // bot->printCorrHistInfo();
             std::cout.flush();
 
-            updateZobristHashText();
+            updateDebugText();
+
+            // Erases current result for future ones
+            botThread->~thread();
+            botThread = NULL;
+            obtainedResult.move = NO_MOVE;
         }
 
         void playMove(const Move &move) {
+            Square startSquare = move.startSquare;
+            Square endSquare = move.endSquare;
+
             highlitedSquares.clear();
 
-            highlitedSquares.push_back({(char) squareX(move.startSquare), (char) squareY(move.startSquare)});
-            highlitedSquares.push_back({(char) squareX(move.endSquare), (char) squareY(move.endSquare)});
+            highlitedSquares.push_back({(char) squareX(startSquare), (char) squareY(startSquare)});
+            highlitedSquares.push_back({(char) squareX(endSquare), (char) squareY(endSquare)});
 
             moveHistory.push_back(move);
             unmakeInfos.push_back(board.playMove(move));
             bot->onMovePlayed(board);
+
+            // Adjust position of moved piece to animate it
+            if ( holdPieceMoves.size() > 0  && squareX(startSquare) == holdPiecePos.x && squareY(startSquare) == holdPiecePos.y) {
+                int xMouse, yMouse;
+                SDL_GetMouseState( &xMouse, &yMouse );
+                piecesDisplayPosX[endSquare] = (float) (xMouse - cellRect.w/2);
+                piecesDisplayPosY[endSquare] = (float) (yMouse - cellRect.w/2);
+            } else {
+                int screenX, screenY;
+                boardPosToScreenPos(squareX(startSquare), squareY(startSquare), screenX, screenY);
+                piecesDisplayPosX[endSquare] = (float) screenX;
+                piecesDisplayPosY[endSquare] = (float) screenY;
+            }
 
             TTEntry ttEntry = bot->transpositionTable[bot->getTTIndex(board)];
             if (ttEntry.zobristHash == board.zobristHash) {
@@ -481,7 +515,7 @@ class Game {
                 }
             }
 
-            updateZobristHashText();
+            updateDebugText();
 
             // TODO : REMOVE (TEST)
             /*int eval = bot->evaluatePosition(board);
@@ -511,7 +545,13 @@ class Game {
 
             bot->onMoveUndone(board);
 
-            updateZobristHashText();
+            updateDebugText();
+
+            // Adjust position of moved piece to animate it
+            int screenX, screenY;
+            boardPosToScreenPos(squareX(move.endSquare), squareY(move.endSquare), screenX, screenY);
+            piecesDisplayPosX[move.startSquare] = (float) screenX;
+            piecesDisplayPosY[move.startSquare] = (float) screenY;
         }
 
         void onElementsLoaded() {
@@ -520,7 +560,7 @@ class Game {
                 evaluationBarRect.y + evaluationBarRect.h - 20
             });
 
-            updateZobristHashText();
+            updateDebugText();
         }
     
     protected:
@@ -582,12 +622,12 @@ class Game {
             }};
         }
 
-        void drawPiece(const Piece &piece) {
+        void drawPiece(const Piece &piece, const SDL_Rect &rect) {
             if (piece.type != EMPTY) {
                 if (piece.isWhite) {
-                    SDL_RenderCopy(renderer, whiteTextures[piece.type], NULL, &cellRect);
+                    SDL_RenderCopy(renderer, whiteTextures[piece.type], NULL, &rect);
                 } else {
-                    SDL_RenderCopy(renderer, blackTextures[piece.type], NULL, &cellRect);
+                    SDL_RenderCopy(renderer, blackTextures[piece.type], NULL, &rect);
                 }
             }
         }
@@ -656,9 +696,17 @@ class Game {
             moveCircleTexture = loadTexture(moveCircleFile, circleRect.w, circleRect.w);
         }
 
-        void updateZobristHashText() {
-            std::string text = std::format("Zobrist Hash : ({:x})", board.zobristHash);
-            shared->elements->zobristHashText.setText(text.c_str());
+        void updateDebugText() {
+            std::string zobristText = std::format("Zobrist Hash : ({:x})", board.zobristHash);
+            shared->elements->zobristHashText.setText(zobristText.c_str());
+
+            std::string depthText = std::format("Depth : {}", bot->currentDepth);
+            shared->elements->depthText.setText(depthText.c_str());
+
+            #if MESURE_LEVEL >= LOW_MESURE
+            std::string text = std::format("Noeuds : {}k  ({} kNPS)", bot->nodeCount/1000, bot->kNPS);
+            shared->elements->counterText.setText(text.c_str());
+            #endif
         }
 
         void setEvalValue(int botEval) {
@@ -680,6 +728,20 @@ class Game {
                 shared->elements->evaluationText.setText(evalText.c_str());
             }
         }
+
+        // Supposed to but run into a thread
+        // Should not be run when another search is currently being made !
+        static void startBotSearch(Game * game, Bot * bot, const Board * board) {
+            if (bot == NULL) {return;}
+            Board boardCopy = board->copy();
+
+            MoveResult bestResult = bot->getBestMove(boardCopy, true, true, false);
+
+            game->botThreadMutex.lock();
+            game->obtainedResult = bestResult;
+            game->botThreadMutex.unlock();
+        }
 };
+
 
 #endif

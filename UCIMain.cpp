@@ -117,6 +117,7 @@ void applyUCIMovesToBoard(Board &board, std::vector<UCIMove> uciMoves) {
         Move move = convertMove(board, uciMove);
         board.playMove(move);
     }
+    board.cleanPreviousHashes();
 }
 std::string moveToUCI(const Move &move) {
     std::string uci = "....";
@@ -243,10 +244,10 @@ int main(int argc, char * argv[]) {
 
                 if (movesPosition == std::string::npos) {
                     // No moves provided
-                    std::string fenString = command.substr(13,command.length() - 13);
+                    std::string fenString = command.substr(13, command.length() - 13);
                     board = loadFEN(fenString);
                 } else {
-                    std::string fenString = command.substr(13,movesPosition - 13);
+                    std::string fenString = command.substr(13, movesPosition - 13);
                     board = loadFEN(fenString);
 
                     int movesIndex = movesPosition + 6;
