@@ -31,6 +31,10 @@ class Shared {
         TTF_Font * mediumFont;
         TTF_Font * bigFont;
 
+        // Decreses, resets when the ui is animating / the user interacts
+        int uiActive = 100;
+        float animationSpeed = 1.0f;
+
         Shared() {
             // Font from google fonts to remove Windows dependency !
             verySmallFont = TTF_OpenFont("assets/fonts/Miranda_Sans/static/MirandaSans-Medium.ttf", 16);
@@ -56,6 +60,8 @@ class Shared {
 
             prevCursor = currentCursor;
             // currentCursor = CURSOR_ARROW;
+
+            uiActive -= 1;
         }
 
         SDL_Cursor * const CURSOR_ARROW = SDL_CreateSystemCursor(SDL_SystemCursor::SDL_SYSTEM_CURSOR_ARROW);

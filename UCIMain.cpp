@@ -191,9 +191,13 @@ void ensurePonderingStopped() {
 void setBotTime() {
     if (givenTime == 0) {
         if (board.whiteTurn) {
-            DEFAULT_BOT_TIME = ((float) whiteTime) / 18.0f + ((float) whiteInc) / 2.0f;
+            DEFAULT_BOT_TIME = /*std::min(*/((float) whiteTime) / 18.0f + ((float) whiteInc) / 2.0f/*, (float) whiteTime * 0.25f)*/;
+
+            //MAX_BOT_TIME = std::min(DEFAULT_BOT_TIME * 4.0f, (float) whiteTime * 0.5f);
         } else {
-            DEFAULT_BOT_TIME = ((float) blackTime) / 18.0f + ((float) blackInc) / 2.0f;
+            DEFAULT_BOT_TIME = /*std::min(*/((float) blackTime) / 18.0f + ((float) blackInc) / 2.0f/*, (float) blackTime * 0.25f)*/;
+
+            //MAX_BOT_TIME = std::min(DEFAULT_BOT_TIME * 4.0f, (float) blackTime * 0.5f);;
         }
     } else {
         DEFAULT_BOT_TIME = (float) givenTime;

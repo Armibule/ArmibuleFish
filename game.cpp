@@ -14,7 +14,21 @@
 
 
 
-// TODO : Not very thread safe
+const int MOVE_CLASSIFICATION_COUNT = 9;
+
+enum MoveClassification : int {
+    MOVE_BRILLIANT = 0,
+    MOVE_GREAT = 1,
+    MOVE_BEST = 2,
+    MOVE_EXCELLENT = 3,
+    MOVE_OK = 4,
+    MOVE_INACCURACY = 5,
+    MOVE_MISTAKE = 6,
+    MOVE_MISSED = 7,
+    MOVE_BLUNDER = 8,
+    NO_CLASSIFICATION = -1
+};
+
 
 class Game {
     public:
@@ -31,7 +45,7 @@ class Game {
 
         float piecesDisplayPosX[64] = {};
         float piecesDisplayPosY[64] = {};
-        float pieceDisplayPosLerp = 0.15f;
+        float pieceDisplayPosLerp = 0.175f;
 
         Game() = delete;
         Game(SDL_Renderer* renderer, Shared * shared, Bot * bot, Board &board) : renderer(renderer)  {
@@ -54,6 +68,8 @@ class Game {
 
             captureIconRect = {0, 0, captureIconSize, captureIconSize};
 
+            moveClassificationRect = {0, 0, moveClassificationSize, moveClassificationSize};
+
             loadTextures();
 
             for (int i = 0 ; i < 64 ; i++) {
@@ -70,8 +86,12 @@ class Game {
             updateBotInfo();
 
             drawBoard(xMouse, yMouse);
+
+            drawMoveClassification();
             
             if ( holdPieceMoves.size() > 0 ) {
+                shared->uiActive = 40;
+
                 drawMoves(xMouse, yMouse);
             }
 
@@ -90,10 +110,10 @@ class Game {
         void updatePiecesDisplayPos() {
             int screenX, screenY;
             for (Square square = 0 ; square < 64 ; square++) {
-                boardPosToScreenPos(squareX(square), squareY(square), screenX, screenY);
+                squareToScreenPos(square, screenX, screenY);
 
-                piecesDisplayPosX[square] += ((float) screenX - piecesDisplayPosX[square])*pieceDisplayPosLerp;
-                piecesDisplayPosY[square] += ((float) screenY - piecesDisplayPosY[square])*pieceDisplayPosLerp;
+                piecesDisplayPosX[square] += ((float) screenX - piecesDisplayPosX[square])*pieceDisplayPosLerp * shared->animationSpeed;
+                piecesDisplayPosY[square] += ((float) screenY - piecesDisplayPosY[square])*pieceDisplayPosLerp * shared->animationSpeed;
             }
         }
 
@@ -172,6 +192,9 @@ class Game {
             }
         }
 
+        void squareToScreenPos(Square square, int &screenX, int &screenY) {
+            boardPosToScreenPos(squareX(square), squareY(square), screenX, screenY);
+        }
         void boardPosToScreenPos(char boardX, char boardY, int &screenX, int &screenY) {
             screenX = boardX * cellRect.w + boardRect.x;
             screenY = boardY * cellRect.w + boardRect.y;
@@ -182,6 +205,7 @@ class Game {
             rect.y = y * cellRect.w + boardRect.y;
         }
 
+        // Draws available moves + the currently hold piece
         void drawMoves(int xMouse, int yMouse) {
             for (const Move &move : holdPieceMoves) {
                 circleRect.x = squareX(move.endSquare) * cellRect.w + boardRect.x + (cellRect.w - circleRect.w)/2;
@@ -203,19 +227,20 @@ class Game {
         }
 
         void drawEvalutionBar() {
-            displayBotEvaluation += (botEvaluation-displayBotEvaluation)/50.0f;
+            displayBotEvaluation += shared->animationSpeed * (botEvaluation-displayBotEvaluation)/15.0f;
 
             SDL_SetRenderDrawColor( renderer, 128, 128, 128, 255 );
             SDL_RenderFillRect( renderer, &evaluationBarOutline );
 
             float whiteProgress;
             if (displayBotEvaluation < 0) {
-                whiteProgress = -1.0f/(displayBotEvaluation - 2.0f);
+                whiteProgress = -1.0f/(displayBotEvaluation*0.50f - 2.0f);
             } else {
-                whiteProgress = 1.0f - 1.0f/(displayBotEvaluation + 2.0f);
+                whiteProgress = 1.0f - 1.0f/(displayBotEvaluation*0.50f + 2.0f);
             }
+            whiteProgress = (whiteProgress - 0.5f)*1.1f + 0.5f;
             
-            SDL_Rect blackRegionRect = {evaluationBarRect.x, evaluationBarRect.y, evaluationBarRect.w, (int) std::round(evaluationBarRect.h * (1.0f - whiteProgress))};
+            SDL_Rect blackRegionRect = {evaluationBarRect.x, evaluationBarRect.y, evaluationBarRect.w, std::clamp((int) std::round(evaluationBarRect.h * (1.0f - whiteProgress)), 0, evaluationBarRect.h)};
             SDL_Rect whiteRegionRect = {blackRegionRect.x, blackRegionRect.y + blackRegionRect.h, blackRegionRect.w, evaluationBarRect.h - blackRegionRect.h};
 
             SDL_SetRenderDrawColor( renderer, 0, 0, 0, 255 );
@@ -250,7 +275,7 @@ class Game {
         // Draws the principal variation according to the bot with arrows
         void drawPV() {
             int width = 6;
-            int alpha = 200;
+            int alpha = 240;
 
             for (const Move &move : predictedVariation) {
                 BoardPos startPos = {(char) squareX(move.startSquare), (char) squareY(move.startSquare)};
@@ -278,11 +303,15 @@ class Game {
             float dy = endY - startY;
             float d = std::sqrt(dx*dx + dy*dy);
 
-            /*238, 131, 183*/
-            /*rgba(238, 234, 131, 1)*/
+            int xMouse, yMouse;
+            SDL_GetMouseState( &xMouse, &yMouse );
 
-            thickLineRGBA(renderer, startX, startY, startX + dx*0.97f, startY + dy*0.97f, width, 238, 234, 131, alpha);
+            /*rgb(238, 234, 131)*/
+            const int arrowR = 238;
+            const int arrowG = 234;
+            const int arrowB = 131;
 
+            
             float widness = d*0.5f;
             float tipLength = width*4.0f;
 
@@ -293,23 +322,37 @@ class Game {
             float xB = startX + dy*widness/d;
             float yB = startY - dx*widness/d;
 
-            // thickLineRGBA(renderer, endX, endY, endX + (xA - endX)*tipLength/d2, endY + (yA - endY)*tipLength/d2, width-1, 238, 131, 183, alpha);
-            // thickLineRGBA(renderer, endX, endY, endX + (xB - endX)*tipLength/d2, endY + (yB - endY)*tipLength/d2, width-1, 238, 131, 183, alpha);
-        
+            thickLineRGBA(
+                renderer, startX, startY, 
+                std::lround(startX + dx - (tipLength - 1.5f)*dx/d), std::lround(startY + dy - (tipLength - 1.5f)*dy/d), 
+                width, arrowR, arrowG, arrowB, alpha
+            );
             filledTrigonRGBA(
                 renderer, 
                 endX, endY, 
-                endX + (xA - endX)*tipLength/d2, endY + (yA - endY)*tipLength/d2,
-                endX + (xB - endX)*tipLength/d2, endY + (yB - endY)*tipLength/d2,
-                238, 234, 131, 255
+                std::lround(endX + (xA - endX)*tipLength/d2), std::lround(endY + (yA - endY)*tipLength/d2),
+                std::lround(endX + (xB - endX)*tipLength/d2), std::lround(endY + (yB - endY)*tipLength/d2),
+                arrowR, arrowG, arrowB, alpha
             );
             aatrigonRGBA(
                 renderer, 
                 endX, endY, 
-                endX + (xA - endX)*tipLength/d2, endY + (yA - endY)*tipLength/d2,
-                endX + (xB - endX)*tipLength/d2, endY + (yB - endY)*tipLength/d2,
-                238, 234, 131, 255
+                std::lround(endX + (xA - endX)*tipLength/d2), std::lround(endY + (yA - endY)*tipLength/d2),
+                std::lround(endX + (xB - endX)*tipLength/d2), std::lround(endY + (yB - endY)*tipLength/d2),
+                arrowR, arrowG, arrowB, alpha
             );
+        }
+
+        void drawMoveClassification() {
+            if (currentMoveClassification != NO_CLASSIFICATION && moveHistory.size() > 0) {
+                Square endSquare = moveHistory.back().endSquare;
+                squareToScreenPos(endSquare, moveClassificationRect.x, moveClassificationRect.y);
+
+                moveClassificationRect.x += cellRect.w - moveClassificationRect.w / 2;
+                moveClassificationRect.y -= moveClassificationRect.h / 2;
+
+                SDL_RenderCopy(renderer, moveClassificationTextures[currentMoveClassification], NULL, &moveClassificationRect);
+            }
         }
 
         void mouseDown(const int mouseX, const int mouseY) {
@@ -394,8 +437,7 @@ class Game {
 
         void botPlays() {
             if (board.state != NEUTRAL) {
-                printf("----- The game is over -----\n");
-                std::cout.flush();
+                std::cout << "----- The game is over -----\n" << std::endl;
                 return;
             }
             if (botThread != NULL) {
@@ -460,6 +502,36 @@ class Game {
             botThread->~thread();
             botThread = NULL;
             obtainedResult.move = NO_MOVE;
+
+            shared->uiActive = 40;
+        }
+
+        void restorePredictedMoves() {
+            TTEntry ttEntry = bot->transpositionTable[bot->getTTIndex(board)];
+            if (ttEntry.zobristHash == board.zobristHash) {
+                // Score is probably a bound rather than an exact score
+                if (board.whiteTurn) {
+                    setEvalValue(ttEntry.score);
+                } else {
+                    setEvalValue(-ttEntry.score);
+                }
+
+                Board boardCopy = board.copy();
+
+                int depthCounter = 12;   // Maximum depth
+
+                Move pvMove = ttEntry.bestMove;
+                while (pvMove != NO_MOVE && ttEntry.zobristHash == boardCopy.zobristHash && depthCounter > 0) {
+                    predictedVariation.push_back(pvMove);
+                
+                    boardCopy.playMove(pvMove);
+                
+                    ttEntry = bot->transpositionTable[bot->getTTIndex(boardCopy)];
+                    pvMove = ttEntry.bestMove;
+
+                    depthCounter -= 1;
+                }
+            }
         }
 
         void playMove(const Move &move) {
@@ -488,32 +560,9 @@ class Game {
                 piecesDisplayPosY[endSquare] = (float) screenY;
             }
 
-            TTEntry ttEntry = bot->transpositionTable[bot->getTTIndex(board)];
-            if (ttEntry.zobristHash == board.zobristHash) {
-                // Score is probably a bound rather than an exact score
-                if (board.whiteTurn) {
-                    setEvalValue(ttEntry.score);
-                } else {
-                    setEvalValue(-ttEntry.score);
-                }
+            predictedVariation.clear();
 
-                predictedVariation.clear();
-                Board boardCopy = board.copy();
-
-                int depthCounter = 8;   // Maximum depth
-
-                Move pvMove = ttEntry.bestMove;
-                while (pvMove != NO_MOVE && ttEntry.zobristHash == boardCopy.zobristHash && depthCounter > 0) {
-                    predictedVariation.push_back(pvMove);
-                
-                    boardCopy.playMove(pvMove);
-                
-                    ttEntry = bot->transpositionTable[bot->getTTIndex(boardCopy)];
-                    pvMove = ttEntry.bestMove;
-
-                    depthCounter -= 1;
-                }
-            }
+            restorePredictedMoves();
 
             updateDebugText();
 
@@ -545,6 +594,9 @@ class Game {
 
             bot->onMoveUndone(board);
 
+            predictedVariation.clear();
+            restorePredictedMoves();
+
             updateDebugText();
 
             // Adjust position of moved piece to animate it
@@ -554,6 +606,11 @@ class Game {
             piecesDisplayPosY[move.startSquare] = (float) screenY;
         }
 
+        // Sets a classification for the current move, that will be displayed
+        void setClassification(MoveClassification moveClassification) {
+            currentMoveClassification = moveClassification;
+        }
+
         void onElementsLoaded() {
             shared->elements->evaluationText.setPos({
                 evaluationBarRect.x + evaluationBarRect.w/2, 
@@ -561,6 +618,30 @@ class Game {
             });
 
             updateDebugText();
+        }
+
+        inline bool isHoldingPiece() {
+            return holdPieceMoves.size() > 0;
+        }
+
+        void setEvalValue(int botEval) {
+            botEvaluation = std::clamp(((float) botEval) / 100.0f, -500.0f, 500.0f);
+
+            float roundedEval = std::round(botEvaluation * 10.0f) / 10.0f;
+
+            if (roundedEval == 0.0f) {
+                shared->elements->evaluationText.setText("0.0");
+            } else if (std::abs(botEval) > CHECKMATE_THRESHOLD) {
+                std::string evalText = "M ";
+                evalText += std::to_string(CHECKMATE_BASE_SCORE - std::abs(botEval));
+                shared->elements->evaluationText.setText(evalText.c_str());
+            } else {
+                std::string evalText = std::to_string(roundedEval);
+                // Removes traling zeros
+                evalText.erase(evalText.find_last_not_of('0') + 1, std::string::npos);
+                evalText.erase(evalText.find_last_not_of('.') + 1, std::string::npos);
+                shared->elements->evaluationText.setText(evalText.c_str());
+            }
         }
     
     protected:
@@ -577,6 +658,8 @@ class Game {
         SDL_Rect promotionRect;
         SDL_Rect captureIconRect;
 
+        SDL_Rect moveClassificationRect;
+
         SDL_Texture* whiteTextures[PIECE_TYPE_COUNT];
         SDL_Texture* blackTextures[PIECE_TYPE_COUNT];
 
@@ -588,6 +671,9 @@ class Game {
 
         SDL_Texture* captureCircleTexture;
         SDL_Texture* moveCircleTexture;
+
+        SDL_Texture* moveClassificationTextures[MOVE_CLASSIFICATION_COUNT];
+
         SDL_Rect circleRect;
 
         BoardPos holdPiecePos;
@@ -605,6 +691,7 @@ class Game {
 
         std::vector<UnmakeMoveInfo> unmakeInfos;
         std::vector<Move> moveHistory;
+        MoveClassification currentMoveClassification = NO_CLASSIFICATION;
 
         std::array<SDL_Rect, PROMOTION_PIECES_COUNT> getPromotionRects( const BoardPos &pos ) {
             int x = pos.x * cellRect.w + boardRect.x;
@@ -694,6 +781,10 @@ class Game {
             }
             captureCircleTexture = loadTexture(captureCirceFile, circleRect.w, circleRect.w);
             moveCircleTexture = loadTexture(moveCircleFile, circleRect.w, circleRect.w);
+
+            for (int i = 0 ; i < MOVE_CLASSIFICATION_COUNT ; i++) {
+                moveClassificationTextures[i] = loadTexture(classificationFiles[i], moveClassificationRect.w, moveClassificationRect.h);
+            }
         }
 
         void updateDebugText() {
@@ -707,26 +798,6 @@ class Game {
             std::string text = std::format("Noeuds : {}k  ({} kNPS)", bot->nodeCount/1000, bot->kNPS);
             shared->elements->counterText.setText(text.c_str());
             #endif
-        }
-
-        void setEvalValue(int botEval) {
-            botEvaluation = ((float) botEval) / 100.0f;
-
-            float roundedEval = std::round(botEvaluation * 10.0f) / 10.0f;
-
-            if (roundedEval == 0.0f) {
-                shared->elements->evaluationText.setText("0.0");
-            } else if (botEval > CHECKMATE_BASE_SCORE-100 || botEval < -CHECKMATE_BASE_SCORE+100) {
-                std::string evalText = "M ";
-                evalText += std::to_string(bot->principalVariation.size());
-                shared->elements->evaluationText.setText(evalText.c_str());
-            } else {
-                std::string evalText = std::to_string(roundedEval);
-                // Removes traling zeros
-                evalText.erase(evalText.find_last_not_of('0') + 1, std::string::npos);
-                evalText.erase(evalText.find_last_not_of('.') + 1, std::string::npos);
-                shared->elements->evaluationText.setText(evalText.c_str());
-            }
         }
 
         // Supposed to but run into a thread

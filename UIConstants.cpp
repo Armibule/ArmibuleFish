@@ -21,10 +21,25 @@ const char* blackFiles[] {
     "assets/pieces/100/blackQueen.png",
     "assets/pieces/100/blackKing.png"
 };
+
 const char* captureCirceFile = "assets/UI/captureCircle.png";
 const char* moveCircleFile = "assets/UI/moveCircle.png";
 
 const int captureIconSize = 40;
 const int captureIconPadding = 5;
+
+const int moveClassificationSize = 30;
+
+const char* classificationFiles[] {
+    "assets/moveClassifications/50/brilliant.png",
+    "assets/moveClassifications/50/great.png",
+    "assets/moveClassifications/50/best.png",
+    "assets/moveClassifications/50/excellent.png",
+    "assets/moveClassifications/50/ok.png",
+    "assets/moveClassifications/50/inaccuracy.png",
+    "assets/moveClassifications/50/mistake.png",
+    "assets/moveClassifications/50/missed.png",
+    "assets/moveClassifications/50/blunder.png"
+};
 
 #endif

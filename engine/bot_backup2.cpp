@@ -1242,15 +1242,7 @@ int PVSearch(Board &board, int depth=NORMAL_DEPTH, int alpha=-INFINITE_SCORE, in
         #endif
         
         board.playNullMove();
-
-        int nullSearchScore;
-        if (board.hasLegalMove())  {
-            nullSearchScore = -PVSearch(board, depth - NullMovePruningReduction, -beta, -beta + 1, remainingSearchExtensions, remainingHorizonExtensions/*, NO_MOVE*/);
-        } else {
-            // Do not search when no move is possible
-            nullSearchScore = beta - 1;
-        }
-
+        int nullSearchScore = -PVSearch(board, depth - NullMovePruningReduction, -beta, -beta + 1, remainingSearchExtensions, remainingHorizonExtensions/*, NO_MOVE*/);
         board.undoNullMove();
 
         // inNMP = false;
@@ -1281,19 +1273,20 @@ int PVSearch(Board &board, int depth=NORMAL_DEPTH, int alpha=-INFINITE_SCORE, in
     }
 
     std::vector<Move> moves;
-    // board.getAllMoves(moves);
+    board.getAllMoves(moves);
 
-    // const int moveCount = moves.size();
+    const int moveCount = moves.size();
 
-    // TEST
-    /*if (moveCount == 0) {
+    if (moveCount == 0) {
         // This is a leaf node, will only be reached after null moves
         return baseScore;
-    }*/
+    }
 
-    // makeSearchExtensions(board, isInCheck, depth, remainingSearchExtensions, remainingHorizonExtensions, moveCount);
+    makeSearchExtensions(board, isInCheck, depth, remainingSearchExtensions, remainingHorizonExtensions, moveCount);
 
     // Move ordering
+    MoveResult moveEvaluations[moveCount] = {};
+
     Move killerMove1 = killerMoves[rootDistance][0];
     Move killerMove2 = killerMoves[rootDistance][1];
     // TESTFFF
@@ -1304,9 +1297,11 @@ int PVSearch(Board &board, int depth=NORMAL_DEPTH, int alpha=-INFINITE_SCORE, in
         counterMove = counterMoves[whiteTurn][lastMove.startSquare][lastMove.endSquare];
     }
 
-    // MOVEGEN_SAVE
-    /*sortMoves(board, moveCount, moves, moveEvaluations, refutationMove, killerMove1, killerMove2, counterMove);
-    for (int i = 0 ; i < moveCount ; i++) { moves[i] = moveEvaluations[i].move; }*/
+    sortMoves(board, moveCount, moves, moveEvaluations, refutationMove, killerMove1, killerMove2, counterMove);
+
+    for (int i = 0 ; i < moveCount ; i++) {
+        moves[i] = moveEvaluations[i].move;
+    }
 
     int LMRLevel = 0;       // Is increased during search
     int score;
@@ -1321,16 +1316,10 @@ int PVSearch(Board &board, int depth=NORMAL_DEPTH, int alpha=-INFINITE_SCORE, in
 
     if (depth == 1) {
         // Frontier node
-
-        // MOVEGEN_SAVE
-        board.getAllMoves(moves);
-        MoveResult moveEvaluations[moves.size()] = {};
-        sortMoves(board, moves.size(), moves, moveEvaluations, refutationMove, killerMove1, killerMove2, counterMove);
-        for (int i = 0 ; i < moves.size() ; i++) { moves[i] = moveEvaluations[i].move; }
         
         // TESTXY
         // for (const Move &move : moves) {
-        for (int moveIndex = 0 ; moveIndex < moves.size() ; moveIndex++) {
+        for (int moveIndex = 0 ; moveIndex < moveCount ; moveIndex++) {
             Move move = moves[moveIndex];
             bool isCapture = board.isCapture(move);
 
@@ -1400,7 +1389,7 @@ int PVSearch(Board &board, int depth=NORMAL_DEPTH, int alpha=-INFINITE_SCORE, in
         if (!board.isCapture(bestMove)) {
             addHistoryBonus(whiteTurn, bestMove, depth, 1);
 
-            for (int j = 0 ; j < moves.size() ; j++) {
+            for (int j = 0 ; j < moveCount ; j++) {
                 Move quietMove = moves[j];
 
                 if (quietMove == bestMove) {
@@ -1425,23 +1414,6 @@ int PVSearch(Board &board, int depth=NORMAL_DEPTH, int alpha=-INFINITE_SCORE, in
         #endif
 
         // Initial full search of expected best move
-
-        bool movesGenerated = false;
-        if (refutationMove != NO_MOVE /*&& !board.leadsToCheck(refutationMove)*/) {
-            moves.push_back(refutationMove);
-        } else {
-            movesGenerated = true;
-
-            board.getAllMoves(moves);
-            MoveResult moveEvaluations[moves.size()] = {};
-            sortMoves(board, moves.size(), moves, moveEvaluations, refutationMove, killerMove1, killerMove2, counterMove);
-            for (int i = 0 ; i < moves.size() ; i++) { moves[i] = moveEvaluations[i].move; }
-
-            /*if (moves[0] != refutationMove && refutationMove != NO_MOVE) {
-                printMove(refutationMove);
-            }*/
-        }
-        
         Move firstMove = moves[0];
         // Fallback move in case none increase alpha (useful in iterative deepening)
         bestMove = firstMove;
@@ -1543,20 +1515,10 @@ int PVSearch(Board &board, int depth=NORMAL_DEPTH, int alpha=-INFINITE_SCORE, in
             }*/
         }
 
-        if (!movesGenerated) {
-            moves.clear();
-
-            movesGenerated = true;
-            board.getAllMoves(moves);
-            MoveResult moveEvaluations[moves.size()] = {};
-            sortMoves(board, moves.size(), moves, moveEvaluations, refutationMove, killerMove1, killerMove2, counterMove);
-            for (int i = 0 ; i < moves.size() ; i++) { moves[i] = moveEvaluations[i].move; }
-        }
-
         const int rootDistance = currentDepth-depth;
 
         // Starts from the second move, the first is already processed
-        for (int moveIndex = 1 ; moveIndex < moves.size() ; moveIndex++) {
+        for (int moveIndex = 1 ; moveIndex < moveCount ; moveIndex++) {
             int nodeDepth = depth - 1;
 
             /*if (// depth >= minLMRDepth &&
@@ -1920,7 +1882,7 @@ int PVSearch(Board &board, int depth=NORMAL_DEPTH, int alpha=-INFINITE_SCORE, in
             addHistoryBonus(whiteTurn, bestMove, depth, 3*2);
 
             // TEST
-            for (int j = 0 ; j < moves.size() ; j++) {
+            for (int j = 0 ; j < moveCount ; j++) {
                 Move quietMove = moves[j];
 
                 if (quietMove == bestMove) {

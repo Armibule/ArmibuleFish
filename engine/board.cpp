@@ -16,24 +16,17 @@ struct UnmakeMoveInfo {
     uint64_t previousZobristHash;
     char castlingFlag;
     char repetitionCount;
-    GameState previousState;
+    // GameState previousState; // Previous state can only be NEUTRAL !
     uint64_t previousEnPassantBB;
 
-    AccumulatorChanges accumulatorChanges;
+    // AccumulatorChanges accumulatorChanges;
 };
 
 
-
-/*GamePhase getGamePhase(const int whitePieces[PIECE_TYPE_COUNT], const int blackPieces[PIECE_TYPE_COUNT]) {
-    // Should range from 0 to 256  (16*4 + 4*14 + 2*24 + 2*44 = 256)
-    return 256 
-            - (whitePieces[PAWN] + blackPieces[PAWN]) * 3
-            - (whitePieces[BISHOP] + whitePieces[KNIGHT] + blackPieces[BISHOP] + blackPieces[KNIGHT]) * 10
-            - (whitePieces[ROOK] + blackPieces[ROOK]) * 16
-            - (whitePieces[QUEEN] + blackPieces[QUEEN]) * 32;
-}*/
+// int refreshes = 0;      // TESTEEE
 
 
+// Because of accumulator stacks, you can't unmake a move from before the Board instance was made
 class Board {
     public:
         Board(bool whiteTurn, 
@@ -70,6 +63,8 @@ class Board {
         
             calcOccupancy();
             recomputeAccumulators();
+
+            // accumulatorChangesStack.reserve(128);
         }
         Board() : Board(
             true, 
@@ -112,9 +107,12 @@ class Board {
         int clockResetIndex;    // Index of the first hash since the last capture/pawn move
         int ply;    // Current helf move index
 
-        // Incremental updated NNUE accumulators, used by the bot
-        Accumulator whiteAccumulator;
-        Accumulator blackAccumulator;
+        // Incrementally updated NNUE accumulators stack, used by the bot
+        std::vector<Accumulator> whiteAccumulatorStack = {};
+        std::vector<Accumulator> blackAccumulatorStack = {};
+
+        // std::vector<AccumulatorChanges> accumulatorChangesStack = {};   // TESTEEE
+        // int accChangeStackIndex = 0;
 
         // Use this function as rarely as possible, prefer unmaking moves
         Board copy() const {
@@ -383,7 +381,7 @@ class Board {
                 return;
             }*/
 
-            moves.reserve(50);
+           moves.reserve(50);// moves.reserve(50);
 
             uint64_t piecesOccupency = occupencies[whiteTurn];
 
@@ -394,6 +392,10 @@ class Board {
 
                 pieceMoves(bitSquare, piece.type, whiteTurn, moves);
             }
+
+            // refreshes = std::max((int) moves.size(), refreshes);
+
+            // std::cout << moves.size() << " ";
 
             /*moves.reserve(allMoves.size());
             for (const Move &move : allMoves) {
@@ -416,7 +418,7 @@ class Board {
                 return;
             }*/
 
-            moves.reserve(30);
+            moves.reserve(10); // moves.reserve(30);
 
             uint64_t piecesOccupency = occupencies[whiteTurn];
 
@@ -427,6 +429,8 @@ class Board {
 
                 pieceCaptureMoves(bitSquare, piece.type, whiteTurn, moves);
             }
+
+            // std::cout << moves.size() << " ";
         }
         // Faster than getting all the moves
         bool hasLegalMove() {
@@ -649,9 +653,14 @@ class Board {
                 zobristHash, 
                 castlingFlag,
                 repetitionCount,
-                state,
+                // state,
                 enPassantBB
             };
+
+            // TESTEEE
+            /*accumulatorChangesStack.emplace_back();
+            AccumulatorChanges &accumulatorChanges = accumulatorChangesStack.back();*/
+            AccumulatorChanges accumulatorChanges = {};
 
             zobristHash ^= zobristCastling[castlingFlag];
 
@@ -665,7 +674,7 @@ class Board {
 
             // Removes the captured piece
             if (destPiece.type != EMPTY) {
-                info.accumulatorChanges.pushSub(destPiece, capturedSquare);
+                /*info.*/accumulatorChanges.pushSub(destPiece, capturedSquare);
 
                 zobristHash ^= zobristPiecesSquaresColor[!whiteTurn][destPiece.type][capturedSquare];
                 colorBB[!whiteTurn][destPiece.type] &= ~capturedBit;
@@ -719,8 +728,8 @@ class Board {
                     pieces[rookStart] = EMPTY_PIECE;
                     pieces[rookEnd] = {ROOK, whiteTurn};
 
-                    info.accumulatorChanges.pushSub({ROOK, whiteTurn}, rookStart);
-                    info.accumulatorChanges.pushAdd({ROOK, whiteTurn}, rookEnd);
+                    /*info.*/accumulatorChanges.pushSub({ROOK, whiteTurn}, rookStart);
+                    /*info.*/accumulatorChanges.pushAdd({ROOK, whiteTurn}, rookEnd);
 
                     zobristHash ^= zobristPiecesSquaresColor[whiteTurn][ROOK][rookStart];
                     zobristHash ^= zobristPiecesSquaresColor[whiteTurn][ROOK][rookEnd];
@@ -776,17 +785,17 @@ class Board {
                     blackPieces[move.promotionType] += 1;
                 }
 
-                info.accumulatorChanges.pushAdd(newPiece, endSquare);
+                /*info.*/accumulatorChanges.pushAdd(newPiece, endSquare);
                 zobristHash ^= zobristPiecesSquaresColor[whiteTurn][move.promotionType][endSquare];
             } else {
                 pieces[endSquare] = piece;
 
                 colorBB[whiteTurn][piece.type] |= endBit;
 
-                info.accumulatorChanges.pushAdd(piece, endSquare);
+                /*info.*/accumulatorChanges.pushAdd(piece, endSquare);
                 zobristHash ^= zobristPiecesSquaresColor[whiteTurn][piece.type][endSquare];
             }
-            info.accumulatorChanges.pushSub(piece, startSquare);
+            /*info.*/accumulatorChanges.pushSub(piece, startSquare);
             zobristHash ^= zobristPiecesSquaresColor[whiteTurn][piece.type][startSquare];
 
             // Clears start square
@@ -809,11 +818,40 @@ class Board {
             isBlackCheckComputed = false;
             calcOccupancy();
 
+            // TESTEEE
             if (updateNNUE) {
-                updateNNUEAccumulators(info);
+                pushNNUEAccumulators(accumulatorChanges);
             }
 
-            if (!hasLegalMove()) {
+            // Built in material draw : 20.87 +/- 43.05, 100 games
+            // Detects material draws
+            bool isMaterialDraw = false;
+            int pieces = std::popcount(allOccupancy);
+            switch (pieces) {
+            case 2:
+                // KvK is drawn
+                isMaterialDraw = true;
+            case 3:
+                if (colorBB[WHITE][KNIGHT] | 
+                    colorBB[BLACK][KNIGHT] |
+                    colorBB[WHITE][BISHOP] |
+                    colorBB[BLACK][BISHOP]) {
+                    // KBvK, KNvK, are drawn
+                    isMaterialDraw = true;
+                }
+                break;
+            // TESTAAA
+            case 4:
+                if (whitePieces[KNIGHT] == 2 || 
+                    blackPieces[KNIGHT] == 2) {
+                    // KNNvK is drawn
+                }
+            }   // TESTDRAW
+
+            if (isMaterialDraw) {
+                // Is a material draw
+                state = DRAW;
+            } else if (!hasLegalMove()) {
                 if (isInCheck(whiteTurn)) {
                     if (whiteTurn) {
                         state = BLACK_WON;
@@ -845,11 +883,93 @@ class Board {
 
             return info;
         }
-        // updates the NNUE accumulators for example if they weren't during playMove()
-        inline void updateNNUEAccumulators(const UnmakeMoveInfo &info) {
-            nnue->applyAccumulatorChanges(whiteAccumulator, WHITE, info.accumulatorChanges);
-            nnue->applyAccumulatorChanges(blackAccumulator, BLACK, info.accumulatorChanges);
+        // Push the changes of the NNUE accumulators for example if they weren't during playMove()
+        /*inline void pushNNUEAccumulators(const AccumulatorChanges &accumulatorChanges) {
+            // Pushes copy, then applies the changes
+            whiteAccumulatorStack.push_back(whiteAccumulatorStack.back());
+            nnue->applyAccumulatorChanges(whiteAccumulatorStack.back(), WHITE, accumulatorChanges);
+
+            blackAccumulatorStack.push_back(blackAccumulatorStack.back());
+            nnue->applyAccumulatorChanges(blackAccumulatorStack.back(), BLACK, accumulatorChanges);
+        }*/
+
+        // TESTEEE
+        /*inline void pushNNUEAccumulators(const AccumulatorChanges &accumulatorChanges) {
+            // Push copies
+            accumulatorChangesStack.push_back(accumulatorChanges);
+
+            // accumulatorChangesStack[accChangeStackIndex] = accumulatorChanges;
+            // accChangeStackIndex += 1;
+
+            // refreshes += 1;     // 8 228 575
+            // refreshes = std::max((int) accumulatorChangesStack.size(), refreshes);  // 18
+        }*/
+        // Use before static evaluation
+        /*inline void applyNNUEAccumulatorsChanges() {
+            // Pushes copy, then applies the changes
+
+            for (const AccumulatorChanges &accumulatorChanges : accumulatorChangesStack) {
+            //for (int i = 0 ; i < accChangeStackIndex ; i++) {
+                // AccumulatorChanges &accumulatorChanges = accumulatorChangesStack[i];
+                whiteAccumulatorStack.push_back(whiteAccumulatorStack.back());
+                nnue->applyAccumulatorChanges(whiteAccumulatorStack.back(), WHITE, accumulatorChanges);
+            // }
+            // for (const AccumulatorChanges &accumulatorChanges : accumulatorChangesStack) {
+                blackAccumulatorStack.push_back(blackAccumulatorStack.back());
+                nnue->applyAccumulatorChanges(blackAccumulatorStack.back(), BLACK, accumulatorChanges);
+            
+                // refreshes += 1;     // 7 635 157
+            }
+            
+            accumulatorChangesStack.clear();
+            // refreshes += 1;     // 7 461 452
+
+            // std::cout << whiteAccumulatorStack.size() << std::endl;
+
+            // accChangeStackIndex = 0;
         }
+        inline void undoAccumulator() {
+            // TESTEEE
+            if (accumulatorChangesStack.size() == 0) {
+                //std::cout << whiteAccumulatorStack.size() << std::endl;
+                whiteAccumulatorStack.pop_back();
+                blackAccumulatorStack.pop_back();
+            } else {
+                //std::cout << accumulatorChangesStack.size() << std::endl;
+                accumulatorChangesStack.pop_back();
+                // accChangeStackIndex -= 1;
+
+                // std::cout << accumulatorChangesStack.size() << " ";
+                // refreshes += 1;     // 593 257
+            }
+
+            // whiteAccumulatorStack.pop_back();
+            // blackAccumulatorStack.pop_back();
+            // nnue->undoAccumulatorChanges(whiteAccumulator, WHITE, accumulatorChanges);
+            // nnue->undoAccumulatorChanges(blackAccumulator, BLACK, accumulatorChanges);
+        }*/
+
+
+        inline void pushNNUEAccumulators(const AccumulatorChanges &accumulatorChanges) {
+            // Push copies
+            whiteAccumulatorStack.push_back(whiteAccumulatorStack.back());
+            nnue->applyAccumulatorChanges(whiteAccumulatorStack.back(), WHITE, accumulatorChanges);
+            
+            blackAccumulatorStack.push_back(blackAccumulatorStack.back());
+            nnue->applyAccumulatorChanges(blackAccumulatorStack.back(), BLACK, accumulatorChanges);
+        
+            // refreshes += 1;     // 8 228 575
+        }
+        // Use before static evaluation
+        // inline void applyNNUEAccumulatorsChanges() {
+        //     return;
+        // }
+        inline void undoAccumulator() {
+            // TESTEEE
+            whiteAccumulatorStack.pop_back();
+            blackAccumulatorStack.pop_back();
+        }
+
 
         // Set updateNNUE to false if the Accumulators have not been updated since previous playMove()
         void undoMove(const Move &move, const UnmakeMoveInfo &info, bool updateNNUE=true) {
@@ -963,12 +1083,12 @@ class Board {
             isBlackCheckComputed = false;
             calcOccupancy();
 
+            // TESTEEE
             if (updateNNUE) {
-                nnue->undoAccumulatorChanges(whiteAccumulator, WHITE, info.accumulatorChanges);
-                nnue->undoAccumulatorChanges(blackAccumulator, BLACK, info.accumulatorChanges);
+                undoAccumulator();
             }
 
-            state = info.previousState;
+            state = NEUTRAL; // Previous state can only be neutral ! // info.previousState;
         }
 
         // For Null Move Pruning, be carefull as it erases allMoves cache
@@ -1164,19 +1284,18 @@ class Board {
             allOccupancy = occupencies[0] | occupencies[1];
         }
 
-        /*void addPieceSquareScore(bool isWhite, PieceType pieceType, Square square) {
-            pieceSquareScoreOpening += pieceValuesPosOpeningColor[isWhite][pieceType][square];
-            pieceSquareScoreEndgame += pieceValuesPosEndgameColor[isWhite][pieceType][square];
-        }
-        void removePieceSquareScore(bool isWhite, PieceType pieceType, Square square) {
-            pieceSquareScoreOpening -= pieceValuesPosOpeningColor[isWhite][pieceType][square];
-            pieceSquareScoreEndgame -= pieceValuesPosEndgameColor[isWhite][pieceType][square];
-        }*/
-
         // Should only be called when copying a board, use incremental updates instead
+        // You can't unmake move from before calling this function
         void recomputeAccumulators() {
-            nnue->boardToAccumulator(whiteAccumulator, pieces, WHITE);
-            nnue->boardToAccumulator(blackAccumulator, pieces, BLACK);
+            whiteAccumulatorStack.reserve(32);
+            blackAccumulatorStack.reserve(32);
+
+            whiteAccumulatorStack.clear();
+            blackAccumulatorStack.clear();
+            whiteAccumulatorStack.emplace_back();
+            blackAccumulatorStack.emplace_back();
+            nnue->boardToAccumulator(whiteAccumulatorStack[0], pieces, WHITE);
+            nnue->boardToAccumulator(blackAccumulatorStack[0], pieces, BLACK);
         }
 };
 

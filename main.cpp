@@ -8,17 +8,26 @@
 
 // Compile-time features
 const int FPS = 60;
-const int FRAME_DUARTION = 1000.0f / (float) FPS;       // Duration in ms
+const int FPS_LOW = 30;
+const int FPS_LOW2 = 20;
+const int FRAME_DURATION = 1000.0f / (float) FPS;       // Duration in ms
+const int FRAME_DURATION_LOW = 1000.0f / (float) FPS_LOW;       // Duration in ms, when user isn't active
+const int FRAME_DURATION_LOW2 = 1000.0f / (float) FPS_LOW2;       // Duration in ms, when user isn't active
+
 const bool IS_PROFILING = false;
 
 
 void profiling() {
+    DEFAULT_BOT_TIME = 1;
+    MAX_BOT_TIME = 20000;
+    NORMAL_DEPTH = 18;
+
     Board board = {};
     Bot * bot = new Bot();
     for (int i = 0 ; i < 5 ; i++) {
         printf("Bot plays\n");
 
-        MoveResult moveResult = bot->getBestMove(board, true);
+        MoveResult moveResult = bot->getBestMove(board, false);
 
         printMove(moveResult.move);
         
@@ -36,6 +45,7 @@ void printUsage() {
     printf(
         "\nProgram usage :\n"
         " -fen \"<FEN>\"                Loads a fen position\n"
+        " -analysis \"<PGN file>\"      Special - Starts analysis mode on the pgn file\n"
         " -time <meanTime> <maxTime>  Sets think time of the engine, in milliseconds\n"
         " --white                     Plays as white\n"
         " --black                     Plays as black\n"
@@ -80,7 +90,7 @@ void parseArguments(int argc, char * argv[]) {
             printUsage();
             exit(-1);
         }
-    }
+    } 
 }
 
 
@@ -97,7 +107,7 @@ int main(int argc, char * argv[]) {
     if (IS_PROFILING) {
         profiling();
         return 0;
-    }    
+    }
 
     if ( SDL_Init( SDL_INIT_EVERYTHING ) != 0 ) {
         std::cout << "error initializing SDL:\n" << SDL_GetError() << std::endl;
@@ -121,6 +131,9 @@ int main(int argc, char * argv[]) {
         -1, 
         SDL_RENDERER_ACCELERATED
     );
+
+    // Focus click is passed as an event
+    SDL_SetHint(SDL_HINT_MOUSE_FOCUS_CLICKTHROUGH, "1");
 
     SDL_Surface * iconSurface = IMG_Load("assets/icon.png");
     SDL_SetWindowIcon(window, iconSurface);
@@ -194,6 +207,7 @@ int main(int argc, char * argv[]) {
                     running = false;
                     break;
                 case SDL_MOUSEBUTTONDOWN:
+                    shared->uiActive = 40;
                     for (Button * button : elements.buttons) {
                         if (button->menu == shared->menu && button->collidesMouse(xMouse, yMouse)) {
                             button->onClick();
@@ -207,6 +221,7 @@ int main(int argc, char * argv[]) {
                     }
                     break;
                 case SDL_MOUSEBUTTONUP:
+                    shared->uiActive = 40;
                     if (shared->menu == Menu::playing) {
                         int x, y;
                         SDL_GetMouseState(&x, &y);
@@ -214,21 +229,29 @@ int main(int argc, char * argv[]) {
                     }
                     break;
                 case SDL_KEYDOWN:
+                    shared->uiActive = 40;
                     switch (windowEvent.key.keysym.sym)
                     {
                     case SDLK_b:
                         game.botPlays();
                         break;
                     case SDLK_u:
-                        game.undoMove();
+                    case SDLK_LEFT:
+                        if (game.botThread == NULL) {
+                            game.undoMove();
+                        }
+                        
+                        break;
+                    case SDLK_RIGHT:
+                        if (game.botThread == NULL) {
+                            if (game.predictedVariation.size() > 0 && board.state == NEUTRAL)  {
+                                game.playMove(game.predictedVariation[0]);
+                            }
+                        }
                         break;
                     case SDLK_p:
                         shared->showPV = !shared->showPV;
                         break;
-                    /*case SDLK_s:
-                        // Toggles piece square table view on piece hover
-                        game.pieceSquareTableViewMode = !game.pieceSquareTableViewMode;
-                        break;*/
                     }
             }
         }
@@ -236,8 +259,20 @@ int main(int argc, char * argv[]) {
         shared->update();
 
         int newTick = SDL_GetTicks();
-        SDL_Delay(std::max(FRAME_DUARTION - (newTick - lastTick), 0));
-        lastTick = newTick;
+        int elapsed = newTick - lastTick;
+        
+        if (shared->uiActive > 0) {
+            SDL_Delay(std::max(FRAME_DURATION - elapsed, 0));
+            shared->animationSpeed = 1.0f;
+        } else if (shared->uiActive > -60) {
+            SDL_Delay(std::max(FRAME_DURATION_LOW - elapsed, 0));
+            shared->animationSpeed = 2.0f;
+        } else {
+            SDL_Delay(std::max(FRAME_DURATION_LOW2 - elapsed, 0));
+            shared->animationSpeed = 3.0f;
+        }
+
+        lastTick = SDL_GetTicks();
     };
 
     SDL_DestroyWindow( window );

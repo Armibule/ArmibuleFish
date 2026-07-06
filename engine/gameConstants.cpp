@@ -18,7 +18,7 @@ enum PieceType : char {
     KING = 5
 };
 
-enum GameState : int {
+enum GameState : unsigned char {
     NEUTRAL,
     WHITE_WON,
     BLACK_WON,
@@ -29,7 +29,7 @@ enum GameState : int {
 const GamePhase INITIAL_GAME_PHASE = 0;
 const GamePhase ENDGAME_THRESHOLD = 180;*/
 
-enum MoveType {
+enum MoveType : unsigned char {
     NORMAL_MOVE,
     SHORT_CASTLE,     // The piece to move should be a king
     LONG_CASTLE,     // The piece to move should be a king

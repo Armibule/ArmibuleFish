@@ -9,7 +9,7 @@
 #define NO_MESURE 0
 #define LOW_MESURE 1
 #define ALL_MESURE 2
-#define MESURE_LEVEL ALL_MESURE // NO_MESURE // ALL_MESURE
+#define MESURE_LEVEL NO_MESURE // NO_MESURE // LOW_MESURE // ALL_MESURE
 
 
 //    Time controls
@@ -23,28 +23,32 @@ float MAX_BOT_TIME = 20000.0f;
 //    General settings
 
 // Transposition Table
-const int TTBits_128M = 22; // 22 is approximately 128MB with sizeof(TTEntry) = 32 bytes
-const int TT_BITS = 24; // TTBits_128M; // 24;
+const int TTBits_128M = 22; // 22 is approximately 128MB with sizeof(TTEntry) = 32 bytes Use this for absolute elo measurement
+const int TT_BITS = TTBits_128M; // TTBits_128M; // 24;
 const uint64_t TTSize = 1ULL << TT_BITS;
 const uint64_t TTMask = TTSize - 1ULL;
 
+const int MAX_TT_STABILITY = 8192;
+
 // Depths
 const int MAX_DEPTH = 128;  // Limits the search depth to a reasonable number
-const int NORMAL_DEPTH = 5; // 6; // 7; // 8;      // Minimal depth searched
+/*const*/ int NORMAL_DEPTH = 5; // 6; // 7; // 8;      // Minimal depth searched
 const int MAX_QUIESCENCE_DEPTH = 8; // 5; // 4;     // Limits Quiescence Search - 
 const int MAX_SEARCH_EXTENSION = 1; //1; // 1;
 const int MAX_HORIZON_EXTENSION = 1; // 1;
 
 
 //    NNUE settings
-// const char * NNUE_FILE = "networks/network_128_30bucket_14.4M_testStd0.10098.nnue3";
-const char * NNUE_FILE = /*"networks/network_128_30bucket_19.9M_testStd0.10462.nnue3";*/ "networks/network_128_30bucket_13.4M_testStd0.10029.nnue3";     // OLD NET "networks/network_128_30bucket_19.9M_testStd0.10514.nnue3";
+// const char * NNUE_FILE = "networks/network_128_30bucket_13.4M_testStd0.10029.nnue3"; // OLD Best Network 1
+// const char * NNUE_FILE = "networks/network_128_30bucket_19.9M_testStd0.10462.nnue3"; // Best Network 2, 63.23 +/- 47.81, 100 games
+const char * NNUE_FILE = "networks/testNetwork_256_30bucket_31M_testStd0.10364.nnue3";  // Best Network 3,  48.96 +/- 35.92, 200 games
 NNUE * nnue = NNUE::fromFile(NNUE_FILE);
 
 
 // Pruning constants
 
-const int REVERSE_FUTILITY_MARGIN = 200; // 200;
+const int REVERSE_FUTILITY_MARGIN = 200; // 200;            // Setting to 150 does not currently work
+const int REVERSE_FUTILITY_MARGIN_CAPTURE = 500; // TESTDDD
 const int FUTILITY_MARGIN = 300;
 // const int DELTA_PRUNING_MARGIN = 200;
 
@@ -77,31 +81,46 @@ const int LMR4_MOVE_NUMBER = 8;  // Number of moves from which LMR2 is applied
 
 
 // Should have some margin from INT32_MIN to prevent overflows/underflows
-const int INFINITE_SCORE =       999999'99;
+const int INFINITE_SCORE       = 999999'99;
 const int CHECKMATE_BASE_SCORE = 9999'99;
+const int CHECKMATE_THRESHOLD  = 9000'00;
 
 
 // Move History Heuristic
 // const int moveHistoryDecayFactor = 64;   // Proportion of value kept between iterations, between 0 and 256
 const int moveHistoryValueFactor =  2'56 * 8;   // Each move history point gives 1/moveHistoryValueFactor score
-const int moveHistoryMaxValue =   200'00 * 8;
+const int moveHistoryMaxValue =   moveHistoryValueFactor * 128; // Higher max value is 32.36 +/- 37.05, 140 games // 200'00 * 8; 
+
 
 const int captureMoveHistoryValueFactor =  2'56 * 8;   // Each move history point gives 1/moveHistoryValueFactor score
-const int captureMoveHistoryMaxValue =   2'56*8 * 128; // 512;// 64; // 128; // 64;
+const int captureMoveHistoryMaxValue =   captureMoveHistoryValueFactor * 128; // 512;// 64; // 128; // 64;
+
+// Move ordering constants
+
+const int refutationMoveBonus = 10000;
+const int promotionBonusQueen = 600;
+const int positiveCaptureBonus = 400;
+// const int neutralCaptureMalus = 30;
+const int killerMove1Bonus = 160; // 120;
+const int killerMove2Bonus = 140; // 80;
+// From 20 to 30 : 32.36 +/- 40.22, 140 games
+const int counterMoveBonus = 30; // 20;    // TESTFFF
+
+
 
 
 // Correction History heuristic (Work In progress)
 
 //    Pawn Structure
 const int PAWN_CORRECTION_FACTOR = 8192;
-const int MAX_PAWN_CORRECTION = 8192 * 512; // 256;
+const int MAX_PAWN_CORRECTION = PAWN_CORRECTION_FACTOR * 512; // 256;
 const uint64_t PAWN_CORRHIST_BITS = 10ULL;
 const int PAWN_CORRHIST_SIZE = 1 << PAWN_CORRHIST_BITS;
 const uint64_t PAWN_CORRHIST_MAGIC = 0x3376e28b7de462a2ULL;     // Currently random
 
 //    Material Structure
 const int MATERIAL_CORRECTION_FACTOR = 8192;
-const int MAX_MATERIAL_CORRECTION = 8192 * 512; // 256;
+const int MAX_MATERIAL_CORRECTION = MATERIAL_CORRECTION_FACTOR * 512; // 256;
 const uint64_t MATERIAL_CORRHIST_BITS = 10ULL;
 const int MATERIAL_CORRHIST_SIZE = 1 << MATERIAL_CORRHIST_BITS;
 // Currently random, indexed by color, pieceType   (KING is not used)
@@ -123,9 +142,13 @@ constexpr uint64_t MATERIAL_CORRHIST_MAGICS[2][6] = {
     }
 };
 
-//    Kings position
-const int KINGS_CORRECTION_FACTOR = 2048;
-const int MAX_KINGS_CORRECTION = 2048 * 128;// * 256;
+//    Kings position - not added, currently -3.47 +/- 32.39, 200 games
+/*const int KINGS_CORRECTION_FACTOR = 8192;
+const int MAX_KINGS_CORRECTION = KINGS_CORRECTION_FACTOR * 256;*/
+
+//    Last move correction history NOT IMPLEMENTED
+/*const int LAST_MOVE_CORRECTION_FACTOR = 4096;
+const int LAST_MOVE_CORRECTION = KINGS_CORRECTION_FACTOR * 256;*/
 
 
 const int checkValue = 40;
@@ -395,7 +418,7 @@ const int piecesStandardValue[6] = {
     300,
     500,
     900,
-    000
+    000// 1'000'000// 000// 000 10000
 };
 
 #endif

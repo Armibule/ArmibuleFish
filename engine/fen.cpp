@@ -32,7 +32,7 @@ inline Square fenCoordinateToSquare(char letter, char digit) {
 }
 
 inline FenCoordinateChars squareToFenCoordinate(Square square) {
-    return {'a' + squareX(square), '8' - squareY(square)};
+    return {(char) ('a' + squareX(square)), (char) ('8' - squareY(square))};
 }
 
 

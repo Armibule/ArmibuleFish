@@ -4,7 +4,7 @@
 
 # Very fast test
 
-"D:\Documents\Documents Laurent & Valérie\Mes docs Armand\créations\C++\fastchess\fastchess.exe" \
+fastchess \
     -engine cmd=progNativeUCI_2.exe name=Version2 \
     -engine cmd=progNativeUCI_1.exe name=Version1 \
     -openings file=testing/UHO_Lichess_4852_v1.epd format=epd order=random \
@@ -14,17 +14,17 @@
 
 # Fast test
 
-"D:\Documents\Documents Laurent & Valérie\Mes docs Armand\créations\C++\fastchess\fastchess.exe" \
+fastchess \
     -engine cmd=progNativeUCI_2.exe name=Version2 \
     -engine cmd=progNativeUCI_1.exe name=Version1 \
     -openings file=testing/UHO_Lichess_4852_v1.epd format=epd order=random \
     -each tc=8.0+0.08 \
-    -rounds 40 -repeat -concurrency 4
+    -rounds 50 -repeat -concurrency 4
 
 
 # Debug
 
-"D:\Documents\Documents Laurent & Valérie\Mes docs Armand\créations\C++\fastchess\fastchess.exe" \
+fastchess \
     -engine cmd=progNativeUCI_2.exe name=Version2 \
     -engine cmd=progNativeUCI_1.exe name=Version1 \
     -openings file=testing/UHO_Lichess_4852_v1.epd format=epd order=random \
@@ -35,7 +35,7 @@
 
 # Against older
 
-"D:\Documents\Documents Laurent & Valérie\Mes docs Armand\créations\C++\fastchess\fastchess.exe" \
+fastchess \
     -engine cmd=progNativeUCI_1.exe name=ArmibuleFishV9 \
     -engine cmd=progNativeUCI_v8.exe name=ArmibuleFishV8 \
     -openings file=testing/UHO_Lichess_4852_v1.epd format=epd order=random \
